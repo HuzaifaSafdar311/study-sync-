@@ -214,6 +214,7 @@ function ImagesToPdfTab() {
       <input
         type="file"
         ref={fileInputRef}
+        aria-label="Upload photos or images to convert to PDF"
         onChange={(e) => handleFiles(e.target.files)}
         multiple
         accept="image/*"
@@ -406,6 +407,34 @@ function OfficeToPdfTab() {
   const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
+
+    if (f.size > 25 * 1024 * 1024) {
+      toast.error('File size exceeds the 25MB maximum limit.');
+      return;
+    }
+
+    const ext = '.' + f.name.split('.').pop()?.toLowerCase();
+    const valid = ['.docx', '.pptx', '.doc', '.ppt', '.odt'];
+    if (!valid.includes(ext)) {
+      toast.error(`Please select a DOCX, PPTX, or DOC file.`);
+      return;
+    }
+    setFile(f);
+    setStatus(null);
+    setDownloadUrl(null);
+    setErrorMsg(null);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (!f) return;
+
+    if (f.size > 25 * 1024 * 1024) {
+      toast.error('File size exceeds the 25MB maximum limit.');
+      return;
+    }
+
     const ext = '.' + f.name.split('.').pop()?.toLowerCase();
     const valid = ['.docx', '.pptx', '.doc', '.ppt', '.odt'];
     if (!valid.includes(ext)) {
@@ -477,6 +506,7 @@ function OfficeToPdfTab() {
       <input
         type="file"
         ref={fileInputRef}
+        aria-label="Upload Office document (Word, PowerPoint) to convert to PDF"
         onChange={handleSelect}
         accept=".docx,.pptx,.doc,.ppt,.odt"
         style={{ display: 'none' }}
@@ -485,6 +515,8 @@ function OfficeToPdfTab() {
       {!file ? (
         <div
           onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
           style={{
             border: '2px dashed #CBD5E1',
             borderRadius: '16px',
@@ -747,6 +779,7 @@ function MergePdfTab() {
       <input
         type="file"
         ref={fileInputRef}
+        aria-label="Upload PDF files to merge"
         onChange={(e) => handleFiles(e.target.files)}
         multiple
         accept=".pdf"
@@ -949,6 +982,7 @@ function SplitPdfTab() {
       <input
         type="file"
         ref={fileInputRef}
+        aria-label="Upload PDF file to split pages"
         onChange={handleSelect}
         accept=".pdf"
         style={{ display: 'none' }}
@@ -987,10 +1021,12 @@ function SplitPdfTab() {
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+            <label htmlFor="splitPdfPageRange" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '6px', cursor: 'pointer' }}>
               Pages to Extract (e.g. 1-3, 5, 8-10):
             </label>
             <input
+              id="splitPdfPageRange"
+              aria-label="Pages to extract (e.g. 1-3, 5, 8-10)"
               type="text"
               value={pageRange}
               onChange={(e) => setPageRange(e.target.value)}
@@ -1124,6 +1160,7 @@ function PdfToImagesTab() {
       <input
         type="file"
         ref={fileInputRef}
+        aria-label="Upload PDF file to extract images"
         onChange={handleSelect}
         accept=".pdf"
         style={{ display: 'none' }}

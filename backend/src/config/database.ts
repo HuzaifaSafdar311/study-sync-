@@ -518,6 +518,20 @@ const mockPrisma: any = {
       memoryDb.auditLogs.push(entry);
       return entry;
     },
+    findMany: async ({ where, orderBy, take, skip }: any = {}) => {
+      let list = [...memoryDb.auditLogs];
+      if (where?.userId) list = list.filter((l) => l.userId === where.userId);
+      if (where?.action) list = list.filter((l) => l.action === where.action);
+      if (skip) list = list.slice(skip);
+      if (take) list = list.slice(0, take);
+      return list;
+    },
+    count: async ({ where }: any = {}) => {
+      let list = [...memoryDb.auditLogs];
+      if (where?.userId) list = list.filter((l) => l.userId === where.userId);
+      if (where?.action) list = list.filter((l) => l.action === where.action);
+      return list.length;
+    },
   },
   course: {
     findMany: async ({ where }: { where: any }) => {
@@ -802,6 +816,12 @@ const mockPrisma: any = {
       if (where?.otpCode) list = list.filter((r) => r.otpCode === where.otpCode);
       if (where?.used !== undefined) list = list.filter((r) => r.used === where.used);
       return list[list.length - 1] || null;
+    },
+    findMany: async ({ where }: { where?: any } = {}) => {
+      let list = Array.from(memoryDb.passwordResets.values());
+      if (where?.email) list = list.filter((r) => r.email.toLowerCase() === where.email.toLowerCase());
+      if (where?.used !== undefined) list = list.filter((r) => r.used === where.used);
+      return list.map((r) => ({ ...r }));
     },
     update: async ({ where, data }: { where: any; data: any }) => {
       const r = memoryDb.passwordResets.get(where.id);

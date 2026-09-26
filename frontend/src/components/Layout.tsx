@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -9,6 +10,8 @@ import {
   LogOut,
   FileArchive,
   LogIn,
+  Menu,
+  X,
 } from 'lucide-react';
 import { authApi } from '../services/api';
 import toast from 'react-hot-toast';
@@ -21,10 +24,17 @@ interface LayoutProps {
 export default function Layout({ user, onLogout }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   const isChatbotPage = location.pathname.startsWith('/chatbot');
   const isCoursesPage = location.pathname.startsWith('/my-courses');
   const isDashboardPage = location.pathname === '/dashboard' || location.pathname === '/' || location.pathname === '';
   const isAdminPage = location.pathname.startsWith('/admin');
+
+  // Close mobile sidebar on route navigation
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     try {
@@ -37,17 +47,53 @@ export default function Layout({ user, onLogout }: LayoutProps) {
 
   return (
     <div className={`app-layout has-sidebar ${isChatbotPage ? 'chatbot-mode' : ''}`}>
+      {/* ─── Mobile Sticky Top Header (Only visible <= 768px) ───────────── */}
+      <div className="layout-mobile-top-bar">
+        <NavLink to="/dashboard" className="layout-mobile-brand" onClick={() => setIsMobileMenuOpen(false)}>
+          <img
+            src="/studysync-logo-horizontal.png"
+            alt="StudySync AI"
+            className="layout-mobile-brand-img"
+          />
+        </NavLink>
+        <button
+          type="button"
+          className="layout-mobile-toggle-btn"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        >
+          {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
+      </div>
+
+      {/* ─── Backdrop overlay when mobile menu is open ──────────────────── */}
+      {isMobileMenuOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* ─── Sleek Left Sidebar Navigation ──────────────────────────────── */}
-      <aside className="app-sidebar">
+      <aside className={`app-sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
         {/* Top: Brand Header (Large Clean Logo, No Border, No Shade) */}
         <div className="sidebar-brand-container">
           <NavLink to="/dashboard" className="sidebar-brand-link" title="StudySync AI — Dashboard">
             <img
-              src="/studysync-logo-transparent.png"
+              src="/studysync-logo-horizontal.png"
               alt="StudySync AI"
               className="sidebar-brand-logo-img"
             />
           </NavLink>
+          <button
+            type="button"
+            className="sidebar-mobile-close-btn"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-label="Close sidebar"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         {/* Center: Main Navigation List Divided into Modern Sections */}

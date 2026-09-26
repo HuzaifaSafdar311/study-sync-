@@ -43,7 +43,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [maskedKey, setMaskedKey] = useState('');
 
   // Step 3: Plan
-  const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro'>('free');
+  const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro'>(() => {
+    try {
+      const saved = localStorage.getItem('studysync_selected_plan');
+      if (saved === 'pro' || saved === 'free') return saved;
+    } catch {}
+    return 'free';
+  });
 
   // Step 4: First Course
   const [courseName, setCourseName] = useState('Machine Learning');
@@ -134,7 +140,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         <img
           src="/studysync-logo-transparent.png"
           alt="StudySync AI"
-          style={{ height: '60px', width: 'auto', objectFit: 'contain', margin: '0 auto 14px', display: 'block' }}
+          style={{ height: '72px', width: 'auto', objectFit: 'contain', margin: '0 auto 14px', display: 'block' }}
         />
         <div style={{
           display: 'inline-flex',
@@ -244,12 +250,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         {step === 1 && (
           <div className="ob-step-container">
             <div style={{ marginBottom: '18px' }}>
-              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#44403C', marginBottom: '6px' }}>
+              <label htmlFor="obUniversity" style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#44403C', marginBottom: '6px', cursor: 'pointer' }}>
                 University / Institution
               </label>
               <div style={{ position: 'relative' }}>
                 <GraduationCap size={16} color="#78716C" style={{ position: 'absolute', left: '12px', top: '12px' }} />
                 <input
+                  id="obUniversity"
                   type="text"
                   value={university}
                   onChange={(e) => setUniversity(e.target.value)}
@@ -268,12 +275,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             </div>
 
             <div style={{ marginBottom: '18px' }}>
-              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#44403C', marginBottom: '6px' }}>
+              <label htmlFor="obMajor" style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#44403C', marginBottom: '6px', cursor: 'pointer' }}>
                 Field of Study / Major
               </label>
               <div style={{ position: 'relative' }}>
                 <BookOpen size={16} color="#78716C" style={{ position: 'absolute', left: '12px', top: '12px' }} />
                 <input
+                  id="obMajor"
                   type="text"
                   value={major}
                   onChange={(e) => setMajor(e.target.value)}
@@ -292,12 +300,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             </div>
 
             <div style={{ marginBottom: '24px' }}>
-              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#44403C', marginBottom: '6px' }}>
+              <label htmlFor="obSemester" style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#44403C', marginBottom: '6px', cursor: 'pointer' }}>
                 Current Semester / Level
               </label>
               <div style={{ position: 'relative' }}>
                 <Layers size={16} color="#78716C" style={{ position: 'absolute', left: '12px', top: '12px' }} />
                 <input
+                  id="obSemester"
                   type="text"
                   value={semester}
                   onChange={(e) => setSemester(e.target.value)}
@@ -437,13 +446,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   ))}
                 </div>
 
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#44403C', marginBottom: '6px' }}>
+                <label htmlFor="obApiKey" style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#44403C', marginBottom: '6px', cursor: 'pointer' }}>
                   {byokProvider.toUpperCase()} API Key
                 </label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <div style={{ position: 'relative', flex: 1 }}>
                     <Lock size={14} color="#A8A29E" style={{ position: 'absolute', left: '10px', top: '10px' }} />
                     <input
+                      id="obApiKey"
+                      aria-label={`${byokProvider.toUpperCase()} API Key`}
                       type="password"
                       value={apiKeyInput}
                       onChange={(e) => {
@@ -606,10 +617,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         {step === 4 && (
           <div className="ob-step-container">
             <div style={{ marginBottom: '18px' }}>
-              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#44403C', marginBottom: '6px' }}>
+              <label htmlFor="obCourseName" style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#44403C', marginBottom: '6px', cursor: 'pointer' }}>
                 Course / Subject Title
               </label>
               <input
+                id="obCourseName"
                 type="text"
                 value={courseName}
                 onChange={(e) => setCourseName(e.target.value)}

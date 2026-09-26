@@ -560,6 +560,7 @@ export default function CamScanner() {
                     Upload Photo from Device
                     <input
                       type="file"
+                      aria-label="Upload photo from device"
                       accept="image/*"
                       onChange={handleUploadImage}
                       style={{ display: 'none' }}
@@ -627,6 +628,7 @@ export default function CamScanner() {
                 Upload Photo
                 <input
                   type="file"
+                  aria-label="Upload photo"
                   accept="image/*"
                   onChange={handleUploadImage}
                   style={{ display: 'none' }}

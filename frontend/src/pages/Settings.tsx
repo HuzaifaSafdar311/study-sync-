@@ -399,15 +399,16 @@ export default function Settings({ user, onUpdateUser, onLogout }: SettingsProps
             {/* Full Name Row */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
               <div style={{ minWidth: 160 }}>
-                <span style={{ fontSize: '0.86rem', fontWeight: 600, color: '#1E293B', display: 'block' }}>
+                <label htmlFor="settingsFullName" style={{ fontSize: '0.86rem', fontWeight: 600, color: '#1E293B', display: 'block', cursor: 'pointer' }}>
                   Full Name
-                </span>
+                </label>
                 <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
                   Your display name across StudySync
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, maxWidth: 380 }}>
                 <input
+                  id="settingsFullName"
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
@@ -445,15 +446,16 @@ export default function Settings({ user, onUpdateUser, onLogout }: SettingsProps
             {/* Email Address Row */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingTop: 12, borderTop: '1px solid #F8FAFC' }}>
               <div style={{ minWidth: 160 }}>
-                <span style={{ fontSize: '0.86rem', fontWeight: 600, color: '#1E293B', display: 'block' }}>
+                <label htmlFor="settingsEmail" style={{ fontSize: '0.86rem', fontWeight: 600, color: '#1E293B', display: 'block', cursor: 'pointer' }}>
                   Target Email Address
-                </span>
+                </label>
                 <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
                   Where quiz & deadline alerts are sent
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, maxWidth: 380 }}>
                 <input
+                  id="settingsEmail"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -550,14 +552,16 @@ export default function Settings({ user, onUpdateUser, onLogout }: SettingsProps
             {/* Reminder Lead Time Dropdown */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
               <div>
-                <span style={{ fontSize: '0.86rem', fontWeight: 600, color: '#1E293B', display: 'block' }}>
+                <label htmlFor="settingsLeadTime" style={{ fontSize: '0.86rem', fontWeight: 600, color: '#1E293B', display: 'block', cursor: 'pointer' }}>
                   Default Reminder Lead Time
-                </span>
+                </label>
                 <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
                   Select primary email alert timing for new tasks
                 </span>
               </div>
               <select
+                id="settingsLeadTime"
+                aria-label="Default Reminder Lead Time"
                 value={leadTime}
                 onChange={(e) => handleLeadTimeChange(Number(e.target.value))}
                 style={{
@@ -1146,6 +1150,8 @@ export default function Settings({ user, onUpdateUser, onLogout }: SettingsProps
               <div style={{ position: 'relative', flex: 1 }}>
                 <Lock size={13} color="#94A3B8" style={{ position: 'absolute', left: 10, top: 10 }} />
                 <input
+                  id="settingsApiKey"
+                  aria-label={`Paste ${newKeyProvider.toUpperCase()} API key`}
                   type="password"
                   value={newKeyInput}
                   onChange={(e) => {

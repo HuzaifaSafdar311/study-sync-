@@ -641,6 +641,7 @@ export default function AdminPortal() {
 
               <div className="admin-filter-group">
                 <select
+                  aria-label="Filter students by billing plan"
                   className="admin-select"
                   value={userPlanFilter}
                   onChange={(e) => setUserPlanFilter(e.target.value)}
@@ -652,6 +653,7 @@ export default function AdminPortal() {
                 </select>
 
                 <select
+                  aria-label="Filter students by status"
                   className="admin-select"
                   value={userStatusFilter}
                   onChange={(e) => setUserStatusFilter(e.target.value)}
@@ -711,6 +713,7 @@ export default function AdminPortal() {
                         </td>
                         <td>
                           <select
+                            aria-label={`Change billing plan for ${u.fullName}`}
                             className="admin-select"
                             value={u.plan || 'free'}
                             disabled={actionLoadingId === u.id}
@@ -809,6 +812,7 @@ export default function AdminPortal() {
 
               <div className="admin-filter-group">
                 <select
+                  aria-label="Filter courses by moderation status"
                   className="admin-select"
                   value={courseStatusFilter}
                   onChange={(e) => setCourseStatusFilter(e.target.value)}

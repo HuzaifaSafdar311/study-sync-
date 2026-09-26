@@ -14,13 +14,17 @@ import courseRoutes from './modules/courses/course.routes';
 import whatsappRoutes from './modules/whatsapp/whatsapp.routes';
 import apiKeyRoutes from './modules/auth/apiKey.routes';
 import adminRoutes from './modules/admin/admin.routes';
-import toolsRoutes from './modules/tools/routes';
+import toolsRoutes from './modules/tools/tools.routes';
 import { whatsAppService } from './modules/whatsapp/whatsapp.service';
 import {
   startStandaloneReminderEngine,
   checkAndInitRedisQueues,
 } from './modules/notifications/notification.queue';
-import { checkAndInitToolsQueues } from './modules/tools/queue';
+import { checkAndInitToolsQueues } from './modules/tools/tools.queue';
+import { testSupabaseConnection } from './config/supabase';
+import { pingRedis } from './config/redis';
+import { findLibreOfficeBinary } from './modules/tools/workers/convert.worker';
+import { findGhostscriptBinary } from './modules/tools/workers/compress.worker';
 
 const app = express();
 
@@ -50,8 +54,7 @@ app.use(cors({
     ) {
       return callback(null, true);
     }
-    // Safe fallback to allow deployed previews
-    return callback(null, true);
+    return callback(new Error('CORS error: Origin not allowed by StudySync security policy'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -68,12 +71,44 @@ app.use(generalLimiter as any);
 
 // ─── Health Check ─────────────────────────────────────────────────────
 
-const healthResponse = (_req: express.Request, res: express.Response) => {
-  res.json({
-    success: true,
-    message: 'StudySync API is running.',
+const healthResponse = async (_req: express.Request, res: express.Response) => {
+  let dbOk = false;
+  try {
+    dbOk = await testSupabaseConnection();
+  } catch {
+    dbOk = false;
+  }
+
+  let redisOk = false;
+  try {
+    redisOk = await pingRedis();
+  } catch {
+    redisOk = false;
+  }
+
+  const sofficePath = findLibreOfficeBinary();
+  const sofficeOk = sofficePath !== null;
+
+  const gsPath = findGhostscriptBinary();
+  const gsOk = gsPath !== null;
+
+  const allHealthy = dbOk && redisOk && sofficeOk && gsOk;
+  const statusCode = allHealthy ? 200 : 503;
+
+  res.status(statusCode).json({
+    success: allHealthy,
+    status: allHealthy ? 'healthy' : 'degraded',
+    message: allHealthy ? 'StudySync API is fully operational.' : 'One or more subsystem health checks failed.',
     timestamp: new Date().toISOString(),
     environment: config.nodeEnv,
+    checks: {
+      database: { status: dbOk ? 'ok' : 'failed' },
+      redis: { status: redisOk ? 'ok' : 'failed' },
+      binaries: {
+        soffice: { status: sofficeOk ? 'ok' : 'failed', path: sofficePath },
+        ghostscript: { status: gsOk ? 'ok' : 'failed', path: gsPath },
+      },
+    },
   });
 };
 app.get('/api/health', healthResponse);

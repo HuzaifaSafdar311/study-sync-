@@ -39,6 +39,7 @@ export default function Calendar() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<CalendarTask | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -48,6 +49,7 @@ export default function Calendar() {
   }, [year, month]);
 
   const loadTasks = async () => {
+    setIsLoading(true);
     // Buffer by 2 months before and after to cover month/week/day navigation smoothly
     const start = new Date(year, month - 2, 1).toISOString();
     const end = new Date(year, month + 3, 0, 23, 59, 59).toISOString();
@@ -58,6 +60,8 @@ export default function Calendar() {
       setTasks(rawTasks.filter((t: CalendarTask) => t.status !== 'done'));
     } catch {
       toast.error('Could not load calendar data.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -282,6 +286,35 @@ export default function Calendar() {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {isLoading && (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                borderRadius: '8px',
+                background: '#EEF2FF',
+                border: '1px solid #C7D2FE',
+                color: '#4F46E5',
+                fontSize: '0.76rem',
+                fontWeight: 600,
+              }}
+            >
+              <div
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: '50%',
+                  border: '2px solid #C7D2FE',
+                  borderTopColor: '#4F46E5',
+                  animation: 'spin 0.8s linear infinite',
+                }}
+              />
+              <span>Syncing calendar...</span>
+            </div>
+          )}
+
           {/* ─── View Mode Switcher: Month | Week | Day ─────────────── */}
           <div
             style={{

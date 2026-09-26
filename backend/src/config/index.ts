@@ -3,6 +3,31 @@ import path from 'path';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+function requireEnv(key: string): string {
+  const val = process.env[key];
+  if (!val || !val.trim()) {
+    throw new Error(`[Config Error] Missing required environment variable: ${key}. Please check your .env configuration.`);
+  }
+  return val.trim();
+}
+
+export function validateStartupEnv(): void {
+  const missing: string[] = [];
+  if (!process.env.DATABASE_URL?.trim()) missing.push('DATABASE_URL');
+  if (!process.env.JWT_ACCESS_SECRET?.trim()) missing.push('JWT_ACCESS_SECRET');
+  if (!process.env.GROQ_API_KEY?.trim() && !process.env.GROQ_API_KEYS?.trim()) missing.push('GROQ_API_KEY');
+  if (!process.env.GEMINI_API_KEY?.trim() && !process.env.GEMINI_API_KEYS?.trim()) missing.push('GEMINI_API_KEY');
+
+  if (missing.length > 0) {
+    throw new Error(
+      `[Startup Validation Error] Missing required environment variables: ${missing.join(', ')}. Server cannot start without these.`
+    );
+  }
+}
+
+// Fail-fast validation at boot
+validateStartupEnv();
+
 export const config = {
   // Server
   port: parseInt(process.env.PORT || '5000', 10),
@@ -10,10 +35,10 @@ export const config = {
   isDev: process.env.NODE_ENV !== 'production',
 
   // Database
-  databaseUrl: process.env.DATABASE_URL || '',
+  databaseUrl: requireEnv('DATABASE_URL'),
   supabase: {
-    url: process.env.SUPABASE_URL || 'https://twluwkcduduvswmjvqfl.supabase.co',
-    anonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR3bHV3a2NkdWR1dnN3bWp2cWZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MDM0OTgsImV4cCI6MjEwMTE3OTQ5OH0.F_P4xTDf0UMH3-HRKNa_GW4YlYz31hBz5KhE2tn4pm0',
+    url: requireEnv('SUPABASE_URL'),
+    anonKey: requireEnv('SUPABASE_ANON_KEY'),
   },
 
   // Redis
@@ -25,15 +50,15 @@ export const config = {
 
   // JWT
   jwt: {
-    accessSecret: process.env.JWT_ACCESS_SECRET || 'dev-access-secret',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret',
+    accessSecret: requireEnv('JWT_ACCESS_SECRET'),
+    refreshSecret: requireEnv('JWT_REFRESH_SECRET'),
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
 
   // Dedicated High-Security Admin JWT (completely isolated from student tokens)
   adminJwt: {
-    secret: process.env.ADMIN_JWT_SECRET || 'studysync-master-admin-secure-vault-key-2026-isolated',
+    secret: requireEnv('ADMIN_JWT_SECRET'),
     expiresIn: process.env.ADMIN_JWT_EXPIRES_IN || '12h',
   },
 

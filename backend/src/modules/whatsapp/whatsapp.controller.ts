@@ -15,6 +15,23 @@ export class WhatsAppController {
     }
   }
 
+  async getQr(_req: Request, res: Response) {
+    try {
+      const status = whatsAppService.getStatus();
+      res.json({
+        success: true,
+        data: {
+          qrCode: status.qrCode,
+          isConnected: status.isConnected,
+          isConnecting: status.isConnecting,
+          phoneNumber: status.phoneNumber,
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+
   async connect(_req: Request, res: Response) {
     try {
       if (!whatsAppService.isConnected && !whatsAppService.isConnecting) {

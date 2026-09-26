@@ -23,6 +23,8 @@ storage/
 */storage/
 chat_histories/
 */chat_histories/
+root_chat_histories/
+*/root_chat_histories/
 faiss_index/
 */faiss_index/
 *.sqlite

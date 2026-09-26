@@ -164,12 +164,13 @@ export default function Landing() {
             <Search className="ss-edu-search-icon" size={20} />
             <input
               type="text"
+              aria-label="What do you want to learn today?"
               placeholder="What do you want to learn today?"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="ss-edu-search-input"
             />
-            <button type="submit" className="ss-edu-search-btn">
+            <button type="submit" disabled={!searchQuery.trim()} aria-label="Ask Copilot" className="ss-edu-search-btn">
               <span>Ask Copilot</span>
             </button>
           </form>

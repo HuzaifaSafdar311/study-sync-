@@ -347,6 +347,119 @@ class AuthController {
       next(error);
     }
   }
+
+  /**
+   * GET /api/auth/google/url
+   */
+  async googleAuthUrl(_req: Request, res: Response) {
+    const authData = authService.getGoogleAuthUrl();
+    res.status(200).json({
+      success: true,
+      data: authData,
+    });
+  }
+
+  /**
+   * GET /api/auth/google
+   * Direct redirect to Google OAuth consent screen
+   */
+  async googleRedirect(_req: Request, res: Response) {
+    const authData = authService.getGoogleAuthUrl();
+    if (authData.isConfigured && authData.url) {
+      res.redirect(authData.url);
+    } else {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      res.redirect(`${frontendUrl}/login?google_error=${encodeURIComponent('Google OAuth is not configured on backend yet.')}`);
+    }
+  }
+
+  /**
+   * GET /api/auth/google/callback
+   */
+  async googleCallback(req: Request, res: Response, next: NextFunction) {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    try {
+      const { code, error } = req.query;
+      if (error) {
+        res.redirect(`${frontendUrl}/login?google_error=${encodeURIComponent(String(error))}`);
+        return;
+      }
+      if (!code || typeof code !== 'string') {
+        res.redirect(`${frontendUrl}/login?google_error=${encodeURIComponent('No authorization code received from Google.')}`);
+        return;
+      }
+
+      const result = await authService.handleGoogleCallback(code);
+
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/api/auth',
+      });
+
+      res.cookie('accessToken', result.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 15 * 60 * 1000,
+      });
+
+      res.redirect(
+        `${frontendUrl}/login?google_auth=success&token=${result.accessToken}&user=${encodeURIComponent(JSON.stringify(result.user))}`
+      );
+    } catch (err: any) {
+      console.error('[GoogleCallback] Error:', err);
+      res.redirect(`${frontendUrl}/login?google_error=${encodeURIComponent(err.message || 'Google sign-in failed.')}`);
+    }
+  }
+
+  /**
+   * POST /api/auth/google/token
+   * Accepts Google credential token OR simulated developer Google sign-in
+   */
+  async googleToken(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { credential, isSimulated, email, name } = req.body;
+
+      let result;
+      if (credential) {
+        result = await authService.handleGoogleCredentialToken(credential);
+      } else if (isSimulated || !config.google.clientId) {
+        result = await authService.simulateGoogleLogin(email, name);
+      } else {
+        res.status(400).json({ success: false, message: 'Google credential token is required.' });
+        return;
+      }
+
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/api/auth',
+      });
+
+      res.cookie('accessToken', result.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 15 * 60 * 1000,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: result.message || 'Google authentication successful!',
+        data: {
+          user: result.user,
+          accessToken: result.accessToken,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const authController = new AuthController();

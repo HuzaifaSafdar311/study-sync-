@@ -10,6 +10,9 @@ const api = axios.create({
   },
 });
 
+// Singleton in-flight refresh promise to prevent concurrent refresh race conditions
+let refreshPromise: Promise<string | null> | null = null;
+
 // Intercept 401s and try to refresh token (for protected requests only)
 api.interceptors.response.use(
   (response) => response,
@@ -22,17 +25,29 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest?._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
-      try {
-        const { data } = await axios.post(`${API_BASE}/auth/refresh`, {}, { withCredentials: true });
+      if (!refreshPromise) {
+        refreshPromise = (async () => {
+          try {
+            const { data } = await axios.post(`${API_BASE}/auth/refresh`, {}, { withCredentials: true });
+            const newAccessToken = data.data?.accessToken;
+            if (newAccessToken) {
+              setAuthToken(newAccessToken);
+              return newAccessToken;
+            }
+            return null;
+          } catch (refreshErr) {
+            setAuthToken(null);
+            return null;
+          } finally {
+            refreshPromise = null;
+          }
+        })();
+      }
 
-        if (data.data?.accessToken) {
-          api.defaults.headers.common['Authorization'] = `Bearer ${data.data.accessToken}`;
-          originalRequest.headers['Authorization'] = `Bearer ${data.data.accessToken}`;
-          return api(originalRequest);
-        }
-      } catch {
-        delete api.defaults.headers.common['Authorization'];
-        // Personal mode: no login redirects
+      const token = await refreshPromise;
+      if (token) {
+        originalRequest.headers['Authorization'] = `Bearer ${token}`;
+        return api(originalRequest);
       }
     }
 
@@ -63,7 +78,7 @@ export const getAuthToken = (): string | null => {
 // ─── Auth API ─────────────────────────────────────────────────────────
 
 export const authApi = {
-  register: (data: { fullName: string; email: string; password: string }) =>
+  register: (data: { fullName: string; email: string; password: string; plan?: string }) =>
     api.post('/auth/register', data),
 
   verifyOtp: (data: { email: string; otpCode: string }) =>
@@ -101,6 +116,11 @@ export const authApi = {
   }) => api.post('/auth/onboarding/complete', data),
 
   refresh: () => api.post('/auth/refresh'),
+
+  getGoogleAuthUrl: () => api.get('/auth/google/url'),
+
+  googleTokenLogin: (data: { credential?: string; isSimulated?: boolean; email?: string; name?: string }) =>
+    api.post('/auth/google/token', data),
 };
 
 // ─── BYOK API Keys API ────────────────────────────────────────────────
@@ -308,7 +328,9 @@ export const toolsApi = {
 
   getDownloadUrl: (jobId: string) => {
     const base = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api');
-    return `${base}/tools/jobs/${jobId}/download`;
+    const token = getAuthToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${base}/tools/jobs/${jobId}/download${tokenParam}`;
   },
 };
 

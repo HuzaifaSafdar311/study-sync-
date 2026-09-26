@@ -25,6 +25,7 @@ export default function PublicHeader() {
     { name: 'Home', path: '/' },
     { name: 'About Us', path: '/about' },
     { name: 'Features', path: '/features' },
+    { name: 'Courses', path: '/courses' },
     { name: 'Pricing', path: '/pricing', hasPulse: true },
     { name: 'Blog', path: '/blog' },
     { name: 'Contact', path: '/contact' },
@@ -36,7 +37,7 @@ export default function PublicHeader() {
         {/* Brand Logo & Pro Status */}
         <Link to="/" className="ss-landing-brand">
           <img
-            src="/studysync-logo-transparent.png"
+            src="/studysync-logo-horizontal.png"
             alt="StudySync AI"
             className="ss-landing-brand-logo-img"
           />

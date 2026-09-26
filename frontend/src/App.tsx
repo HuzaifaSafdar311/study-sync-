@@ -26,6 +26,7 @@ import ToolsHub from './pages/Tools/ToolsHub';
 import Compressor from './pages/Tools/Compressor';
 import CamScanner from './pages/Tools/CamScanner';
 import PdfConverter from './pages/Tools/PdfConverter';
+import PublicCourses from './pages/PublicCourses';
 import Layout from './components/Layout';
 import LogoFillLoader from './components/LogoFillLoader';
 
@@ -57,10 +58,10 @@ function ProtectedRoute({
 }) {
   if (authChecking) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0F172A', color: '#94A3B8' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAFAF9', color: '#57534E' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: '36px', height: '36px', border: '3px solid rgba(99,102,241,0.2)', borderTopColor: '#6366F1', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
-          <p style={{ fontSize: '0.875rem' }}>Loading student workspace...</p>
+          <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>Loading student workspace...</p>
         </div>
       </div>
     );
@@ -72,6 +73,73 @@ function ProtectedRoute({
 
   if (user.isOnboarded === false) {
     return <Navigate to="/onboarding" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Tool Auth Guard: Displays student login prompt for CPU-heavy tools
+function ToolAuthGuard({
+  user,
+  authChecking,
+  children,
+}: {
+  user: User | null;
+  authChecking: boolean;
+  children: React.ReactNode;
+}) {
+  if (authChecking) {
+    return (
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: '32px', height: '32px', border: '3px solid #E2E8F0', borderTopColor: '#6366F1', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div style={{ maxWidth: '540px', margin: '4rem auto', padding: '2.5rem', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+        <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.1)', color: '#6366F1', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        </div>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.5rem' }}>Student Login Required</h2>
+        <p style={{ color: '#64748B', fontSize: '0.95rem', marginBottom: '1.75rem', lineHeight: 1.5 }}>
+          Document conversion and compression utilize dedicated server-side CPU workers. Please log in or create a free student account to process your files securely.
+        </p>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <a
+            href="/login"
+            style={{
+              padding: '10px 24px',
+              background: '#6366F1',
+              color: '#FFFFFF',
+              borderRadius: '8px',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              textDecoration: 'none',
+              boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+            }}
+          >
+            Log In
+          </a>
+          <a
+            href="/register"
+            style={{
+              padding: '10px 24px',
+              background: '#F1F5F9',
+              color: '#334155',
+              borderRadius: '8px',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              textDecoration: 'none',
+              border: '1px solid #E2E8F0',
+            }}
+          >
+            Create Account
+          </a>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;
@@ -200,7 +268,7 @@ function App() {
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/contact" element={<Contact />} />
-          <Route path="/courses" element={<Navigate to="/" replace />} />
+          <Route path="/courses" element={<PublicCourses />} />
 
           {/* Authentication & Account Recovery Routes */}
           <Route
@@ -240,9 +308,23 @@ function App() {
           {/* Public Tools Section (Accessible to both Guests and Logged-in Students, No Auth Required) */}
           <Route element={<Layout user={user} onLogout={handleLogout} />}>
             <Route path="/tools" element={<ToolsHub />} />
-            <Route path="/tools/compressor" element={<Compressor />} />
+            <Route
+              path="/tools/compressor"
+              element={
+                <ToolAuthGuard user={user} authChecking={authChecking}>
+                  <Compressor />
+                </ToolAuthGuard>
+              }
+            />
             <Route path="/tools/cam-scanner" element={<CamScanner />} />
-            <Route path="/tools/pdf-converter" element={<PdfConverter />} />
+            <Route
+              path="/tools/pdf-converter"
+              element={
+                <ToolAuthGuard user={user} authChecking={authChecking}>
+                  <PdfConverter />
+                </ToolAuthGuard>
+              }
+            />
           </Route>
 
           {/* Protected Workspace Layout (Per-Student Isolated) */}

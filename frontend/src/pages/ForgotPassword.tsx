@@ -124,12 +124,13 @@ export default function ForgotPassword() {
             {step === 1 ? (
               <form className="ss-auth-form" onSubmit={handleRequestOtp}>
                 <div className="ss-form-group">
-                  <label className="ss-form-label">University Email Address</label>
+                  <label className="ss-form-label" htmlFor="forgotEmail">University Email Address</label>
                   <div className="ss-form-input-wrap">
                     <div className="ss-input-icon">
                       <Mail size={16} />
                     </div>
                     <input
+                      id="forgotEmail"
                       type="email"
                       required
                       value={email}
@@ -161,12 +162,13 @@ export default function ForgotPassword() {
             ) : (
               <form className="ss-auth-form" onSubmit={handleResetPassword}>
                 <div className="ss-form-group">
-                  <label className="ss-form-label">6-Digit Reset Code</label>
+                  <label className="ss-form-label" htmlFor="forgotOtp">6-Digit Reset Code</label>
                   <div className="ss-form-input-wrap">
                     <div className="ss-input-icon">
                       <KeyRound size={16} />
                     </div>
                     <input
+                      id="forgotOtp"
                       type="text"
                       required
                       maxLength={6}
@@ -180,12 +182,13 @@ export default function ForgotPassword() {
                 </div>
 
                 <div className="ss-form-group">
-                  <label className="ss-form-label">New Password</label>
+                  <label className="ss-form-label" htmlFor="newPassword">New Password</label>
                   <div className="ss-form-input-wrap">
                     <div className="ss-input-icon">
                       <Lock size={16} />
                     </div>
                     <input
+                      id="newPassword"
                       type={showPassword ? 'text' : 'password'}
                       required
                       value={newPassword}
@@ -198,6 +201,7 @@ export default function ForgotPassword() {
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="ss-eye-toggle-btn"
+                      aria-label="Toggle password visibility"
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -205,12 +209,13 @@ export default function ForgotPassword() {
                 </div>
 
                 <div className="ss-form-group">
-                  <label className="ss-form-label">Confirm New Password</label>
+                  <label className="ss-form-label" htmlFor="confirmPassword">Confirm New Password</label>
                   <div className="ss-form-input-wrap">
                     <div className="ss-input-icon">
                       <Lock size={16} />
                     </div>
                     <input
+                      id="confirmPassword"
                       type={showPassword ? 'text' : 'password'}
                       required
                       value={confirmPassword}

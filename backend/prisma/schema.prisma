@@ -155,6 +155,9 @@ model Subscription {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
   @@map("subscriptions")
 }
 
@@ -181,6 +184,7 @@ model Task {
   reminders Reminder[]
 
   @@index([userId, deadline])
+  @@index([courseId])
   @@map("tasks")
 }
 
@@ -196,6 +200,7 @@ model Reminder {
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([scheduledFor, status])
+  @@index([taskId])
   @@map("reminders")
 }
 
@@ -212,6 +217,7 @@ model Course {
   materials    CourseMaterial[]
   chatMessages ChatMessage[]
 
+  @@index([userId])
   @@map("courses")
 }
 
@@ -226,6 +232,8 @@ model CourseMaterial {
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
+  @@index([courseId])
+  @@index([userId])
   @@map("course_materials")
 }
 
@@ -287,6 +295,9 @@ model AuditLog {
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
   @@map("audit_log")
 }
 

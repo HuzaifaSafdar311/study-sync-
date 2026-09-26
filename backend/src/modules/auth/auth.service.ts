@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { hashPassword, verifyPassword } from '../../utils/hasher';
 import jwt from 'jsonwebtoken';
 import prisma, { loadUserSettings } from '../../config/database';
@@ -23,10 +24,15 @@ class AuthService {
       if (!existing.isVerified) {
         // Unverified existing account: refresh OTP and allow verification
         const otpCode = generate6DigitOtp();
+        const hashedOtp = await hashPassword(otpCode);
         const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
         await prisma.user.update({
           where: { id: existing.id },
-          data: { otpCode, otpExpiresAt } as any,
+          data: {
+            otpCode: hashedOtp,
+            otpExpiresAt,
+            ...(input.plan ? { plan: input.plan } : {}),
+          } as any,
         });
         await emailService.sendVerificationOtpEmail(input.email, otpCode, input.fullName);
         return {
@@ -45,6 +51,7 @@ class AuthService {
 
     // Generate 6-digit verification OTP (15 min validity)
     const otpCode = generate6DigitOtp();
+    const hashedOtp = await hashPassword(otpCode);
     const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     // Create user (unverified by default until OTP is entered)
@@ -53,8 +60,9 @@ class AuthService {
         fullName: input.fullName,
         email: input.email,
         passwordHash,
+        plan: input.plan || 'free',
         isVerified: false,
-        otpCode,
+        otpCode: hashedOtp,
         otpExpiresAt,
       } as any,
       select: {
@@ -96,7 +104,17 @@ class AuthService {
       return { user: safeUser, ...tokens, message: 'Account is already verified.' };
     }
 
-    if (!user.otpCode || user.otpCode.trim() !== otp.trim()) {
+    if (!user.otpCode) {
+      throw Object.assign(new Error('Invalid verification code. Please check your email.'), {
+        statusCode: 400,
+      });
+    }
+
+    const isValidOtp = user.otpCode.startsWith('$argon2')
+      ? await verifyPassword(user.otpCode, otp.trim())
+      : user.otpCode.trim() === otp.trim();
+
+    if (!isValidOtp) {
       throw Object.assign(new Error('Invalid verification code. Please check your email.'), {
         statusCode: 400,
       });
@@ -147,11 +165,12 @@ class AuthService {
     }
 
     const otpCode = generate6DigitOtp();
+    const hashedOtp = await hashPassword(otpCode);
     const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { otpCode, otpExpiresAt } as any,
+      data: { otpCode: hashedOtp, otpExpiresAt } as any,
     });
 
     await emailService.sendVerificationOtpEmail(user.email, otpCode, user.fullName);
@@ -210,10 +229,11 @@ class AuthService {
     // Check verification status
     if (user.isVerified === false) {
       const otpCode = generate6DigitOtp();
+      const hashedOtp = await hashPassword(otpCode);
       const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
       await prisma.user.update({
         where: { id: user.id },
-        data: { otpCode, otpExpiresAt } as any,
+        data: { otpCode: hashedOtp, otpExpiresAt } as any,
       });
       await emailService.sendVerificationOtpEmail(user.email, otpCode, user.fullName);
 
@@ -244,12 +264,14 @@ class AuthService {
 
     if (user) {
       const otpCode = generate6DigitOtp();
+      const hashedOtp = await hashPassword(otpCode);
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
       await prisma.passwordReset.create({
         data: {
+          userId: user.id,
           email: user.email,
-          otpCode,
+          otpCode: hashedOtp,
           expiresAt,
           used: false,
         } as any,
@@ -268,13 +290,24 @@ class AuthService {
    * Reset Password with OTP verification.
    */
   async resetPassword(email: string, otp: string, newPassword: string) {
-    const resetRecord = await prisma.passwordReset.findFirst({
+    const candidateResets = await prisma.passwordReset.findMany({
       where: {
         email,
-        otpCode: otp.trim(),
         used: false,
       },
     });
+
+    let resetRecord: any = null;
+    for (const record of candidateResets) {
+      const isMatch = record.otpCode.startsWith('$argon2')
+        ? await verifyPassword(record.otpCode, otp.trim())
+        : record.otpCode.trim() === otp.trim();
+
+      if (isMatch) {
+        resetRecord = record;
+        break;
+      }
+    }
 
     if (!resetRecord) {
       throw Object.assign(new Error('Invalid or expired reset code.'), { statusCode: 400 });
@@ -372,6 +405,172 @@ class AuthService {
       where: { id: userId },
       data: { refreshToken: null },
     });
+  }
+
+  /**
+   * Get Google OAuth 2.0 authorization URL
+   */
+  getGoogleAuthUrl(): { url: string; isConfigured: boolean } {
+    if (!config.google.clientId) {
+      return {
+        url: '',
+        isConfigured: false,
+      };
+    }
+    const params = new URLSearchParams({
+      client_id: config.google.clientId,
+      redirect_uri: config.google.redirectUri,
+      response_type: 'code',
+      scope: 'openid email profile',
+      access_type: 'offline',
+      prompt: 'select_account',
+    });
+    return {
+      url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+      isConfigured: true,
+    };
+  }
+
+  /**
+   * Handle Google OAuth callback authorization code exchange
+   */
+  async handleGoogleCallback(code: string) {
+    if (!config.google.clientId || !config.google.clientSecret) {
+      throw Object.assign(
+        new Error('Google OAuth credentials (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET) are not configured in backend/.env.'),
+        { statusCode: 400 }
+      );
+    }
+
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: config.google.clientId,
+        client_secret: config.google.clientSecret,
+        redirect_uri: config.google.redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      const errBody = await tokenRes.text();
+      console.error('[GoogleOAuth] Code exchange failed:', errBody);
+      throw Object.assign(new Error('Failed to exchange authorization code with Google.'), { statusCode: 400 });
+    }
+
+    const tokenData: any = await tokenRes.json();
+    const accessToken = tokenData.access_token;
+
+    const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!userInfoRes.ok) {
+      throw Object.assign(new Error('Failed to fetch user profile from Google.'), { statusCode: 400 });
+    }
+
+    const googleUser: any = await userInfoRes.json();
+    return await this.loginOrRegisterGoogleUser({
+      email: googleUser.email,
+      fullName: googleUser.name || googleUser.email.split('@')[0],
+      avatarUrl: googleUser.picture,
+    });
+  }
+
+  /**
+   * Handle Google Credential token (Google One-Tap or Google Identity Services SDK)
+   */
+  async handleGoogleCredentialToken(credential: string) {
+    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+    if (!verifyRes.ok) {
+      throw Object.assign(new Error('Invalid Google identity token.'), { statusCode: 401 });
+    }
+
+    const payload: any = await verifyRes.json();
+    if (!payload.email) {
+      throw Object.assign(new Error('No email found in Google identity token.'), { statusCode: 400 });
+    }
+
+    return await this.loginOrRegisterGoogleUser({
+      email: payload.email,
+      fullName: payload.name || payload.email.split('@')[0],
+      avatarUrl: payload.picture,
+    });
+  }
+
+  /**
+   * Development fallback: Simulate Google Sign-In for testing before adding Google Cloud credentials
+   */
+  async simulateGoogleLogin(email?: string, name?: string) {
+    const targetEmail = (email || 'google.student@studysync.ai').trim().toLowerCase();
+    const targetName = name || 'Google Verified Student';
+    return await this.loginOrRegisterGoogleUser({
+      email: targetEmail,
+      fullName: targetName,
+      avatarUrl: 'https://lh3.googleusercontent.com/a/default-user',
+    });
+  }
+
+  /**
+   * Internal helper: Authenticate or register a Google user
+   */
+  async loginOrRegisterGoogleUser({
+    email,
+    fullName,
+    avatarUrl,
+  }: {
+    email: string;
+    fullName: string;
+    avatarUrl?: string;
+  }) {
+    const normalizedEmail = email.trim().toLowerCase();
+    let user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (user) {
+      if ((user as any).isBlocked) {
+        throw Object.assign(
+          new Error('Your account has been suspended by the administrator.'),
+          { statusCode: 403 }
+        );
+      }
+      const updateData: any = { isVerified: true };
+      if (avatarUrl && !user.avatarUrl) {
+        updateData.avatarUrl = avatarUrl;
+      }
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: updateData,
+      });
+    } else {
+      const randomPassword = crypto.randomBytes(32).toString('hex');
+      const passwordHash = await hashPassword(randomPassword);
+
+      user = await prisma.user.create({
+        data: {
+          fullName: fullName || normalizedEmail.split('@')[0],
+          email: normalizedEmail,
+          passwordHash,
+          avatarUrl: avatarUrl || null,
+          isVerified: true,
+          isOnboarded: false,
+          role: 'student',
+        } as any,
+      });
+    }
+
+    const tokens = this.generateTokens(user.id, user.role);
+    await this.storeRefreshToken(user.id, tokens.refreshToken);
+
+    const { passwordHash: _, ...safeUser } = user;
+    return {
+      user: safeUser,
+      ...tokens,
+      message: 'Successfully signed in with Google!',
+    };
   }
 
   /**

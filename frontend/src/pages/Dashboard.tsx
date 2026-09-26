@@ -159,6 +159,7 @@ export default function Dashboard({ user: _user }: DashboardProps) {
   // Task Modal state
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadDashboardData();
@@ -166,6 +167,7 @@ export default function Dashboard({ user: _user }: DashboardProps) {
 
   const loadDashboardData = async () => {
     try {
+      setIsLoading(true);
       const [tasksRes, coursesRes] = await Promise.all([
         tasksApi.getAll(),
         coursesApi.getAll().catch(() => ({ data: { data: { courses: [] } } })),
@@ -178,6 +180,8 @@ export default function Dashboard({ user: _user }: DashboardProps) {
       setCourses(fetchedCourses);
     } catch {
       toast.error('Could not load dashboard data. Try refreshing.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -910,20 +914,90 @@ export default function Dashboard({ user: _user }: DashboardProps) {
       </div>
 
       {/* ─── 1. TOP STAT CARDS (4 Flush Aligned Cards) ──────────────── */}
-      <div className="dashboard-stats-grid">
-        {/* Card 1: Total Courses */}
-        <div
-          style={{
-            background: '#FFFFFF',
-            border: '1px solid #E2E8F0',
-            borderRadius: '16px',
-            padding: '20px 22px',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03), 0 4px 12px rgba(0, 0, 0, 0.02)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-          }}
-        >
+      {isLoading ? (
+        <>
+          {/* Skeleton Stat Cards */}
+          <div className="dashboard-stats-grid">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '16px',
+                  padding: '20px 22px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                }}
+              >
+                <div className="ss-skeleton" style={{ width: 48, height: 48, borderRadius: 12, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div className="ss-skeleton" style={{ width: 70, height: 26, marginBottom: 8 }} />
+                  <div className="ss-skeleton" style={{ width: 110, height: 14 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Skeleton Moveable Graphs Grid */}
+          <div className="dashboard-graphs-grid">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '16px',
+                  padding: '20px 24px',
+                  height: 250,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div className="ss-skeleton" style={{ width: 140, height: 20 }} />
+                <div className="ss-skeleton" style={{ flex: 1, borderRadius: 10 }} />
+              </div>
+            ))}
+          </div>
+
+          {/* Skeleton Agenda Card */}
+          <div
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderRadius: '16px',
+              padding: '22px 24px',
+              width: '100%',
+              boxSizing: 'border-box',
+            }}
+          >
+            <div className="ss-skeleton" style={{ width: 160, height: 22, marginBottom: 16 }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="ss-skeleton" style={{ width: '100%', height: 46, borderRadius: 10 }} />
+              ))}
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="dashboard-stats-grid">
+            {/* Card 1: Total Courses */}
+            <div
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid #E2E8F0',
+                borderRadius: '16px',
+                padding: '20px 22px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03), 0 4px 12px rgba(0, 0, 0, 0.02)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+              }}
+            >
           <div
             style={{
               width: 48,
@@ -1307,6 +1381,8 @@ export default function Dashboard({ user: _user }: DashboardProps) {
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Task Modal for Creating / Editing */}
       {isTaskModalOpen && (

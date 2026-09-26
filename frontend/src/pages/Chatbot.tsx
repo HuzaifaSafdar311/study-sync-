@@ -1839,6 +1839,7 @@ export default function Chatbot() {
                             }}
                           >
                             <textarea
+                              aria-label="Edit message text"
                               value={editingText}
                               onChange={(e) => setEditingText(e.target.value)}
                               autoFocus
@@ -2283,6 +2284,7 @@ export default function Chatbot() {
                       width: 82,
                       height: 82,
                       objectFit: 'contain',
+                      borderRadius: '20px',
                       marginBottom: 14,
                       filter: 'drop-shadow(0 10px 26px rgba(99, 102, 241, 0.45))',
                       userSelect: 'none',
@@ -2604,6 +2606,7 @@ export default function Chatbot() {
                   <input
                     type="file"
                     ref={fileInputRef}
+                    aria-label="Upload document or study notes"
                     onChange={handleFileUpload}
                     multiple
                     accept=".pdf,.docx,.doc,.txt,.md,.json,.csv,.pptx,.ppt,.xlsx,.xls,.mp3,.wav,.m4a,.webm,.ogg,.aac,.flac,image/*"
@@ -2612,6 +2615,7 @@ export default function Chatbot() {
                   <input
                     type="file"
                     ref={imageInputRef}
+                    aria-label="Upload image"
                     onChange={handleImageSelect}
                     multiple
                     accept="image/png,image/jpeg,image/webp,image/jpg,image/gif"

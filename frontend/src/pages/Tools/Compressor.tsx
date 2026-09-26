@@ -217,6 +217,7 @@ export default function Compressor() {
             <input
               type="file"
               ref={fileInputRef}
+              aria-label="Upload document or image to compress"
               onChange={handleFileChange}
               accept=".pdf,.docx,.pptx,.jpg,.jpeg,.png,.webp"
               style={{ display: 'none' }}

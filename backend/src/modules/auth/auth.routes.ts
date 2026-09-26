@@ -56,6 +56,12 @@ router.post(
   authController.refresh
 );
 
+// Google OAuth 2.0 routes
+router.get('/google/url', authController.googleAuthUrl);
+router.get('/google', authController.googleRedirect);
+router.get('/google/callback', authController.googleCallback);
+router.post('/google/token', authLimiter, auditLog('user_google_auth'), authController.googleToken);
+
 // Protected routes (require valid access token)
 router.post(
   '/logout',

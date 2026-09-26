@@ -319,6 +319,7 @@ export function startReminderWorker() {
       });
 
       // Dispatch
+      let wasDelivered = true;
       if (channel === 'email' && task.user.email) {
         console.log(`[📧 Reminder] Dispatching human AI email to: ${task.user.email}`);
         await emailService.sendEmail({
@@ -330,15 +331,18 @@ export function startReminderWorker() {
         console.log(`[📱 WhatsApp] To: ${task.user.whatsappNumber}`);
         console.log(`   Message: ${body}`);
         if (whatsAppService.isConnected) {
-          await whatsAppService.sendMessage(task.user.whatsappNumber, formatForWhatsApp(body));
+          const sent = await whatsAppService.sendMessage(task.user.whatsappNumber, formatForWhatsApp(body));
+          if (!sent) wasDelivered = false;
+        } else {
+          wasDelivered = false;
         }
       }
 
       await prisma.reminder.update({
         where: { id: reminderId },
         data: {
-          status: 'sent',
-          sentAt: new Date(),
+          status: wasDelivered ? 'sent' : 'failed',
+          sentAt: wasDelivered ? new Date() : undefined,
           generatedMessage: body,
         },
       });
@@ -504,6 +508,7 @@ export async function getDigestPreview(userId: string) {
 }
 
 // ─── Standalone In-Memory Polling Engine (Active with or without Redis) ──
+const reminderAttemptCounts = new Map<string, number>();
 
 export function startStandaloneReminderEngine() {
   console.log('[Reminder Engine] 🚀 Standalone email reminder engine started (checking every 30s)');
@@ -568,17 +573,22 @@ export function startStandaloneReminderEngine() {
               });
 
               console.log(`[📱 WhatsApp Dispatch] Sending proactive 24h study plan reminder for "${task.title}" to +${targetPhone}...`);
-              await whatsAppService.sendMessage(targetPhone, waBody);
+              const sentSuccess = await whatsAppService.sendMessage(targetPhone, waBody);
 
               await prisma.reminder.update({
                 where: { id: rem.id },
                 data: {
-                  status: 'sent',
-                  sentAt: new Date(),
-                  generatedMessage: waBody,
+                  status: sentSuccess ? 'sent' : 'failed',
+                  sentAt: sentSuccess ? new Date() : undefined,
+                  generatedMessage: sentSuccess ? waBody : '[Failed: WhatsApp delivery returned false]',
                 },
               });
-              console.log(`[📱 WhatsApp Dispatch] ✅ Successfully sent WhatsApp reminder for "${task.title}"!`);
+
+              if (sentSuccess) {
+                console.log(`[📱 WhatsApp Dispatch] ✅ Successfully sent WhatsApp reminder for "${task.title}"!`);
+              } else {
+                console.error(`[📱 WhatsApp Dispatch] ❌ Failed to deliver WhatsApp reminder for "${task.title}".`);
+              }
             } else {
               console.log(`[📱 WhatsApp Dispatch] ⏳ WhatsApp target phone not linked (+${targetPhone || 'none'}). Waiting for connection.`);
             }
@@ -612,9 +622,28 @@ export function startStandaloneReminderEngine() {
               generatedMessage: body,
             },
           });
+          reminderAttemptCounts.delete(rem.id);
           console.log(`[📧 Email Dispatch] ✅ Successfully sent reminder for "${task.title}"!`);
         } catch (itemErr: any) {
           console.error(`[Reminder Dispatch Error]:`, itemErr.message);
+          const currentAttempts = (reminderAttemptCounts.get(rem.id) || 0) + 1;
+          reminderAttemptCounts.set(rem.id, currentAttempts);
+
+          if (currentAttempts >= 3) {
+            console.error(`[Reminder Engine] ❌ Max retry attempts (3) reached for reminder ${rem.id}. Marking as failed.`);
+            try {
+              await prisma.reminder.update({
+                where: { id: rem.id },
+                data: {
+                  status: 'failed',
+                  generatedMessage: `[Delivery Failed after 3 attempts]: ${itemErr.message}`,
+                },
+              });
+            } catch (statusUpdateErr: any) {
+              console.error('[Reminder Engine] Failed to mark reminder as failed:', statusUpdateErr?.message);
+            }
+            reminderAttemptCounts.delete(rem.id);
+          }
         }
       }
     } catch (err: any) {

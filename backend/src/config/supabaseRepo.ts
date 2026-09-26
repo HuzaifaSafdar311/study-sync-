@@ -3,13 +3,15 @@ import { supabase, toSnakeCase, toCamelCase } from './supabase';
 
 export const supabaseRepo: any = {
   user: {
-    findUnique: async ({ where }: { where: { email?: string; id?: string } }) => {
+    findUnique: async ({ where }: { where: { email?: string; id?: string; googleOauthId?: string } }) => {
       try {
         let query = supabase.from('users').select('*');
         if (where.email) {
           query = query.ilike('email', where.email.trim().toLowerCase());
         } else if (where.id) {
           query = query.eq('id', where.id);
+        } else if (where.googleOauthId) {
+          query = query.eq('google_oauth_id', where.googleOauthId);
         } else {
           return null;
         }
@@ -28,6 +30,7 @@ export const supabaseRepo: any = {
         let query = supabase.from('users').select('*');
         if (where?.id) query = query.eq('id', where.id);
         if (where?.email) query = query.ilike('email', where.email.trim().toLowerCase());
+        if (where?.googleOauthId) query = query.eq('google_oauth_id', where.googleOauthId);
         const { data, error } = await query.limit(1).maybeSingle();
         if (error || !data) return null;
         return toCamelCase(data);
@@ -121,7 +124,7 @@ export const supabaseRepo: any = {
   },
 
   course: {
-    findMany: async ({ where, orderBy }: { where?: any; orderBy?: any } = {}) => {
+    findMany: async ({ where, orderBy, include }: { where?: any; orderBy?: any; include?: any } = {}) => {
       try {
         let query = supabase.from('courses').select('*');
         if (where?.userId) query = query.eq('user_id', where.userId);
@@ -133,7 +136,23 @@ export const supabaseRepo: any = {
 
         const { data, error } = await query;
         if (error || !data) return [];
-        return data.map(toCamelCase);
+        const courses = data.map(toCamelCase);
+
+        if (include?._count?.select?.tasks && courses.length > 0) {
+          const courseIds = courses.map((c: any) => c.id);
+          const { data: tasksData } = await supabase
+            .from('tasks')
+            .select('id, course_id')
+            .in('course_id', courseIds);
+
+          const taskList = tasksData || [];
+          courses.forEach((c: any) => {
+            const count = taskList.filter((t: any) => t.course_id === c.id).length;
+            c._count = { tasks: count };
+          });
+        }
+
+        return courses;
       } catch (err) {
         console.error('[SupabaseRepo] course.findMany error:', err);
         return [];
@@ -273,11 +292,24 @@ export const supabaseRepo: any = {
           if (where.deadline.gt) query = query.gt('deadline', new Date(where.deadline.gt).toISOString());
           if (where.deadline.lt) query = query.lt('deadline', new Date(where.deadline.lt).toISOString());
         }
+        if (where?.createdAt) {
+          if (where.createdAt.gte) query = query.gte('created_at', new Date(where.createdAt.gte).toISOString());
+          if (where.createdAt.lte) query = query.lte('created_at', new Date(where.createdAt.lte).toISOString());
+          if (where.createdAt.gt) query = query.gt('created_at', new Date(where.createdAt.gt).toISOString());
+          if (where.createdAt.lt) query = query.lt('created_at', new Date(where.createdAt.lt).toISOString());
+        }
 
-        if (orderBy?.deadline === 'desc') {
-          query = query.order('deadline', { ascending: false });
-        } else {
-          query = query.order('deadline', { ascending: true });
+        if (orderBy) {
+          const orderItems = Array.isArray(orderBy) ? orderBy : [orderBy];
+          for (const item of orderItems) {
+            if (item.deadline) {
+              query = query.order('deadline', { ascending: item.deadline === 'asc' });
+            } else if (item.createdAt) {
+              query = query.order('created_at', { ascending: item.createdAt === 'asc' });
+            } else if (item.priority) {
+              query = query.order('priority', { ascending: item.priority === 'asc' });
+            }
+          }
         }
 
         if (take && typeof take === 'number') {
@@ -298,6 +330,20 @@ export const supabaseRepo: any = {
           tasks.forEach((t: any) => {
             t.reminders = mappedReminders.filter((r: any) => r.taskId === t.id);
           });
+        }
+
+        if (include?.user && tasks.length > 0) {
+          const userIds = Array.from(new Set(tasks.map((t: any) => t.userId).filter(Boolean)));
+          if (userIds.length > 0) {
+            const { data: usersData } = await supabase
+              .from('users')
+              .select('*')
+              .in('id', userIds);
+            const mappedUsers = (usersData || []).map(toCamelCase);
+            tasks.forEach((t: any) => {
+              t.user = mappedUsers.find((u: any) => u.id === t.userId) || null;
+            });
+          }
         }
 
         return tasks;
@@ -334,6 +380,17 @@ export const supabaseRepo: any = {
             .select('*')
             .eq('task_id', task.id);
           task.reminders = (reminders || []).map(toCamelCase);
+        }
+
+        if (include?.user && task.userId) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', task.userId)
+            .maybeSingle();
+          if (userData) {
+            task.user = toCamelCase(userData);
+          }
         }
 
         return task;
@@ -406,7 +463,34 @@ export const supabaseRepo: any = {
       try {
         let query = supabase.from('tasks').select('*', { count: 'exact', head: true });
         if (where?.userId) query = query.eq('user_id', where.userId);
-        if (where?.status) query = query.eq('status', where.status);
+        if (where?.courseId) query = query.eq('course_id', where.courseId);
+        if (where?.confirmed !== undefined) query = query.eq('confirmed', where.confirmed);
+        if (where?.status) {
+          if (typeof where.status === 'object') {
+            if (where.status.not !== undefined) query = query.neq('status', where.status.not);
+            if (Array.isArray(where.status.in)) query = query.in('status', where.status.in);
+          } else {
+            query = query.eq('status', where.status);
+          }
+        }
+        if (where?.type) {
+          if (typeof where.type === 'object') {
+            if (where.type.not !== undefined) query = query.neq('type', where.type.not);
+            if (Array.isArray(where.type.in)) query = query.in('type', where.type.in);
+          } else {
+            query = query.eq('type', where.type);
+          }
+        }
+        if (where?.deadline) {
+          if (where.deadline.gte) query = query.gte('deadline', new Date(where.deadline.gte).toISOString());
+          if (where.deadline.lte) query = query.lte('deadline', new Date(where.deadline.lte).toISOString());
+          if (where.deadline.gt) query = query.gt('deadline', new Date(where.deadline.gt).toISOString());
+          if (where.deadline.lt) query = query.lt('deadline', new Date(where.deadline.lt).toISOString());
+        }
+        if (where?.createdAt) {
+          if (where.createdAt.gte) query = query.gte('created_at', new Date(where.createdAt.gte).toISOString());
+          if (where.createdAt.lte) query = query.lte('created_at', new Date(where.createdAt.lte).toISOString());
+        }
         const { count, error } = await query;
         if (error) return 0;
         return count || 0;
@@ -807,6 +891,27 @@ export const supabaseRepo: any = {
       }
     },
 
+    findMany: async ({ where, orderBy, take }: { where?: any; orderBy?: any; take?: number } = {}) => {
+      try {
+        let query = supabase.from('password_resets').select('*');
+        if (where?.email) query = query.ilike('email', where.email.trim().toLowerCase());
+        if (where?.used !== undefined) query = query.eq('used', where.used);
+        if (orderBy?.createdAt === 'desc') {
+          query = query.order('created_at', { ascending: false });
+        } else {
+          query = query.order('created_at', { ascending: true });
+        }
+        if (take && typeof take === 'number') {
+          query = query.limit(take);
+        }
+        const { data, error } = await query;
+        if (error || !data) return [];
+        return data.map(toCamelCase);
+      } catch {
+        return [];
+      }
+    },
+
     update: async ({ where, data }: { where: any; data: any }) => {
       const payload = toSnakeCase(data);
       const { data: updated, error } = await supabase
@@ -829,6 +934,43 @@ export const supabaseRepo: any = {
         return payload;
       } catch {
         return null;
+      }
+    },
+
+    findMany: async ({ where, orderBy, take, skip }: any = {}) => {
+      try {
+        let query = supabase.from('audit_log').select('*');
+        if (where?.userId) query = query.eq('user_id', where.userId);
+        if (where?.action) query = query.eq('action', where.action);
+        if (orderBy?.createdAt === 'desc') {
+          query = query.order('created_at', { ascending: false });
+        } else {
+          query = query.order('created_at', { ascending: true });
+        }
+        if (typeof skip === 'number' && typeof take === 'number') {
+          query = query.range(skip, skip + take - 1);
+        } else if (typeof take === 'number') {
+          query = query.limit(take);
+        }
+        const { data, error } = await query;
+        if (error || !data) return [];
+        return data.map(toCamelCase);
+      } catch (err) {
+        console.error('[SupabaseRepo] auditLog.findMany error:', err);
+        return [];
+      }
+    },
+
+    count: async ({ where }: any = {}) => {
+      try {
+        let query = supabase.from('audit_log').select('*', { count: 'exact', head: true });
+        if (where?.userId) query = query.eq('user_id', where.userId);
+        if (where?.action) query = query.eq('action', where.action);
+        const { count, error } = await query;
+        if (error) return 0;
+        return count || 0;
+      } catch {
+        return 0;
       }
     },
   },

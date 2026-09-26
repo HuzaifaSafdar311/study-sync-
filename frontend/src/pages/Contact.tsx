@@ -177,8 +177,9 @@ export default function Contact() {
 
                   <div className="ss-form-row">
                     <div className="ss-form-field">
-                      <label className="ss-form-label">Full Name *</label>
+                      <label className="ss-form-label" htmlFor="contactName">Full Name *</label>
                       <input
+                        id="contactName"
                         type="text"
                         required
                         placeholder="e.g. Ali Ahmed"
@@ -188,8 +189,9 @@ export default function Contact() {
                       />
                     </div>
                     <div className="ss-form-field">
-                      <label className="ss-form-label">University Email *</label>
+                      <label className="ss-form-label" htmlFor="contactEmail">University Email *</label>
                       <input
+                        id="contactEmail"
                         type="email"
                         required
                         placeholder="e.g. ali@university.edu.pk"
@@ -202,8 +204,9 @@ export default function Contact() {
 
                   <div className="ss-form-row">
                     <div className="ss-form-field">
-                      <label className="ss-form-label">Inquiry Category</label>
+                      <label className="ss-form-label" htmlFor="contactCategory">Inquiry Category</label>
                       <select
+                        id="contactCategory"
                         value={formData.category}
                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                         className="ss-form-select"
@@ -216,8 +219,9 @@ export default function Contact() {
                       </select>
                     </div>
                     <div className="ss-form-field">
-                      <label className="ss-form-label">Subject</label>
+                      <label className="ss-form-label" htmlFor="contactSubject">Subject</label>
                       <input
+                        id="contactSubject"
                         type="text"
                         placeholder="e.g. Question about CS-402 indexing"
                         value={formData.subject}
@@ -228,8 +232,9 @@ export default function Contact() {
                   </div>
 
                   <div className="ss-form-field">
-                    <label className="ss-form-label">Your Message *</label>
+                    <label className="ss-form-label" htmlFor="contactMessage">Your Message *</label>
                     <textarea
+                      id="contactMessage"
                       required
                       rows={5}
                       placeholder="Describe your question, request, or feedback..."

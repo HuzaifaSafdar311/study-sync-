@@ -1,7 +1,27 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, ShieldCheck, Mail, ArrowRight } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function PublicFooter() {
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+
+  const handleSubscribe = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = newsletterEmail.trim();
+    if (!trimmed) {
+      toast.error('Please enter your university email address.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmed)) {
+      toast.error('Please enter a valid email address (e.g. name@university.edu).');
+      return;
+    }
+    toast.success('Thank you for subscribing to StudySync Academic Insights!');
+    setNewsletterEmail('');
+  };
+
   return (
     <footer className="ss-landing-footer">
       <div className="ss-footer-main ss-edu-container">
@@ -9,7 +29,7 @@ export default function PublicFooter() {
         <div className="ss-footer-col-brand">
           <Link to="/" className="ss-landing-brand" style={{ marginBottom: '16px' }}>
             <img
-              src="/studysync-logo-transparent.png"
+              src="/studysync-logo-horizontal.png"
               alt="StudySync AI"
               className="ss-landing-brand-logo-img"
             />
@@ -37,6 +57,7 @@ export default function PublicFooter() {
             <li><Link to="/" className="ss-footer-link">Home</Link></li>
             <li><Link to="/about" className="ss-footer-link">About Us</Link></li>
             <li><Link to="/features" className="ss-footer-link">Superpowers</Link></li>
+            <li><Link to="/courses" className="ss-footer-link">Courses</Link></li>
             <li><Link to="/pricing" className="ss-footer-link">Student Pricing</Link></li>
           </ul>
         </div>
@@ -58,24 +79,28 @@ export default function PublicFooter() {
           <p style={{ fontSize: '0.875rem', color: '#64748B', lineHeight: 1.5, marginBottom: '14px' }}>
             Get weekly exam prep strategies, high-yield study frameworks, and product updates.
           </p>
-          <div className="ss-footer-newsletter-form">
+          <form className="ss-footer-newsletter-form" onSubmit={handleSubscribe}>
             <div className="ss-newsletter-input-wrap">
               <Mail size={16} color="#94A3B8" />
               <input
+                id="footerNewsletterEmail"
+                aria-label="University email for semester insights newsletter"
                 type="email"
                 placeholder="Enter university email..."
                 className="ss-newsletter-input"
+                value={newsletterEmail}
+                onChange={(e) => setNewsletterEmail(e.target.value)}
               />
             </div>
             <button
-              type="button"
+              type="submit"
               className="ss-newsletter-btn"
-              onClick={() => alert('Thank you for subscribing to StudySync Academic Insights!')}
+              aria-label="Subscribe to newsletter"
             >
               <span>Join</span>
               <ArrowRight size={14} />
             </button>
-          </div>
+          </form>
         </div>
       </div>
 

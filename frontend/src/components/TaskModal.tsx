@@ -113,15 +113,16 @@ export default function TaskModal({ onClose, onSaved, initialData }: TaskModalPr
                 : 'Set deadline and automatic email notifications'}
             </p>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ padding: 6 }}>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close modal" style={{ padding: 6 }}>
             <X size={18} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <div className="input-group">
-            <label className="input-label" style={{ fontWeight: 600 }}>Task Title</label>
+            <label className="input-label" htmlFor="taskModalTitle" style={{ fontWeight: 600 }}>Task Title</label>
             <input
+              id="taskModalTitle"
               className="input"
               placeholder="e.g. AI Assignment or Quiz 1"
               value={form.title}
@@ -132,8 +133,9 @@ export default function TaskModal({ onClose, onSaved, initialData }: TaskModalPr
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
             <div className="input-group">
-              <label className="input-label" style={{ fontWeight: 600 }}>Type</label>
+              <label className="input-label" htmlFor="taskModalType" style={{ fontWeight: 600 }}>Type</label>
               <select
+                id="taskModalType"
                 className="input"
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value })}
@@ -148,8 +150,9 @@ export default function TaskModal({ onClose, onSaved, initialData }: TaskModalPr
             </div>
 
             <div className="input-group">
-              <label className="input-label" style={{ fontWeight: 600 }}>Priority</label>
+              <label className="input-label" htmlFor="taskModalPriority" style={{ fontWeight: 600 }}>Priority</label>
               <select
+                id="taskModalPriority"
                 className="input"
                 value={form.priority}
                 onChange={(e) => setForm({ ...form, priority: e.target.value })}
@@ -162,10 +165,11 @@ export default function TaskModal({ onClose, onSaved, initialData }: TaskModalPr
           </div>
 
           <div className="input-group">
-            <label className="input-label" style={{ fontWeight: 600 }}>
+            <label className="input-label" htmlFor="taskModalSubject" style={{ fontWeight: 600 }}>
               Topic / Subject <span style={{ color: '#6366F1', fontWeight: 500 }}>(e.g. AI, Machine Learning)</span>
             </label>
             <input
+              id="taskModalSubject"
               className="input"
               placeholder="e.g. Machine Learning, Computer Networks"
               value={form.subject}
@@ -174,8 +178,9 @@ export default function TaskModal({ onClose, onSaved, initialData }: TaskModalPr
           </div>
 
           <div className="input-group">
-            <label className="input-label" style={{ fontWeight: 600 }}>Due Date (Day)</label>
+            <label className="input-label" htmlFor="taskModalDueDate" style={{ fontWeight: 600 }}>Due Date (Day)</label>
             <input
+              id="taskModalDueDate"
               type="date"
               className="input"
               value={form.dueDate}
@@ -206,8 +211,9 @@ export default function TaskModal({ onClose, onSaved, initialData }: TaskModalPr
           </div>
 
           <div className="input-group">
-            <label className="input-label" style={{ fontWeight: 600 }}>Description / Notes (optional)</label>
+            <label className="input-label" htmlFor="taskModalDesc" style={{ fontWeight: 600 }}>Description / Notes (optional)</label>
             <textarea
+              id="taskModalDesc"
               className="input"
               rows={2}
               placeholder="Any extra instructions, LMS links, or notes..."

@@ -11,6 +11,8 @@ import {
   BookOpen,
   Upload,
   Sparkles,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -54,6 +56,7 @@ export default function Courses() {
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,9 +89,11 @@ export default function Courses() {
   const fetchCourses = async () => {
     try {
       setLoading(true);
+      setError(null);
       const { data } = await coursesApi.getAll();
       setCourses(data.data?.courses || []);
     } catch {
+      setError('Unable to load courses. Please check your internet connection and try again.');
       toast.error('Failed to load courses.');
     } finally {
       setLoading(false);
@@ -378,6 +383,61 @@ export default function Courses() {
             }}
           />
           <span style={{ fontSize: '0.9rem', color: '#64748B', fontWeight: 500 }}>Loading academic courses...</span>
+        </div>
+      ) : error ? (
+        <div
+          style={{
+            background: '#FEF2F2',
+            border: '1.5px solid #FECACA',
+            borderRadius: 16,
+            padding: '48px 24px',
+            textAlign: 'center',
+            maxWidth: 520,
+            margin: '40px auto',
+          }}
+        >
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 12,
+              background: '#FEE2E2',
+              color: '#DC2626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 14px auto',
+            }}
+          >
+            <AlertCircle size={24} />
+          </div>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#991B1B', marginBottom: 6 }}>
+            Failed to Load Courses
+          </h3>
+          <p style={{ fontSize: '0.86rem', color: '#B91C1C', lineHeight: 1.5, marginBottom: 20 }}>
+            {error}
+          </p>
+          <button
+            type="button"
+            onClick={fetchCourses}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '9px 18px',
+              background: '#DC2626',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: 8,
+              fontSize: '0.84rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(220, 38, 38, 0.25)',
+            }}
+          >
+            <RefreshCw size={14} />
+            <span>Try Again</span>
+          </button>
         </div>
       ) : filteredCourses.length === 0 ? (
         <div
@@ -816,6 +876,7 @@ export default function Courses() {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                   <input
                                     type="checkbox"
+                                    aria-label={`Mark "${task.title}" as completed`}
                                     checked={false}
                                     onChange={() => handleToggleTaskStatus(task)}
                                     style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#4F46E5' }}
@@ -882,6 +943,7 @@ export default function Courses() {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                   <input
                                     type="checkbox"
+                                    aria-label={`Mark "${task.title}" as pending`}
                                     checked={true}
                                     onChange={() => handleToggleTaskStatus(task)}
                                     style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#16A34A' }}
@@ -948,6 +1010,7 @@ export default function Courses() {
                     <input
                       ref={fileInputRef}
                       type="file"
+                      aria-label="Upload course documents and syllabus"
                       multiple
                       onChange={handleFileUpload}
                       style={{ display: 'none' }}

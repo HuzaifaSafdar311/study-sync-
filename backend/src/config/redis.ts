@@ -48,4 +48,23 @@ const redis = new Proxy(redisClient, {
   },
 });
 
+export async function pingRedis(): Promise<boolean> {
+  try {
+    if (!isRedisUp && redisClient.status !== 'ready' && redisClient.status !== 'connecting') {
+      try {
+        await redisClient.connect();
+      } catch {
+        return false;
+      }
+    }
+    const pong = await Promise.race([
+      redisClient.ping(),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), 1000)),
+    ]);
+    return pong === 'PONG';
+  } catch {
+    return false;
+  }
+}
+
 export default redis;

@@ -7,10 +7,24 @@ interface RateLimitOptions {
   maxRequests: number; // Max requests per window
   keyPrefix?: string;  // Redis key prefix
   message?: string;    // Custom error message
+  fallbackToMemory?: boolean; // When true, enforce in-memory rate limits if Redis is offline
 }
 
+// In-memory store for fallback rate limiting
+const inMemoryStore = new Map<string, { count: number; resetAt: number }>();
+
+// Cleanup expired memory entries every minute
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of inMemoryStore.entries()) {
+    if (v.resetAt <= now) {
+      inMemoryStore.delete(k);
+    }
+  }
+}, 60 * 1000).unref();
+
 /**
- * Redis-backed rate limiter middleware.
+ * Redis-backed rate limiter middleware with optional in-memory fallback.
  * Uses sliding window counter approach for accurate rate limiting.
  */
 export const rateLimit = (options: RateLimitOptions) => {
@@ -19,12 +33,48 @@ export const rateLimit = (options: RateLimitOptions) => {
     maxRequests,
     keyPrefix = 'rl',
     message = 'Too many requests — please try again in a moment.',
+    fallbackToMemory = false,
   } = options;
 
   const windowSeconds = Math.ceil(windowMs / 1000);
 
+  const enforceMemoryRateLimit = (req: Request, res: Response, next: NextFunction): void => {
+    const identifier = req.ip || req.socket.remoteAddress || 'unknown';
+    const key = `${keyPrefix}:${identifier}`;
+    const now = Date.now();
+    const entry = inMemoryStore.get(key);
+
+    if (!entry || entry.resetAt <= now) {
+      inMemoryStore.set(key, { count: 1, resetAt: now + windowMs });
+      res.setHeader('X-RateLimit-Limit', maxRequests);
+      res.setHeader('X-RateLimit-Remaining', maxRequests - 1);
+      return next();
+    }
+
+    entry.count += 1;
+    const remaining = Math.max(0, maxRequests - entry.count);
+    res.setHeader('X-RateLimit-Limit', maxRequests);
+    res.setHeader('X-RateLimit-Remaining', remaining);
+
+    if (entry.count > maxRequests) {
+      const retryAfter = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+      res.setHeader('Retry-After', retryAfter);
+      res.status(429).json({
+        success: false,
+        message,
+        retryAfter,
+      });
+      return;
+    }
+
+    return next();
+  };
+
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (redis.status !== 'ready') {
+      if (fallbackToMemory) {
+        return enforceMemoryRateLimit(req, res, next);
+      }
       next();
       return;
     }
@@ -56,7 +106,11 @@ export const rateLimit = (options: RateLimitOptions) => {
 
       next();
     } catch (error) {
-      // If Redis is down, allow the request through (fail-open)
+      if (fallbackToMemory) {
+        console.warn('[RateLimit] Redis error, falling back to in-memory rate limiting:', (error as any)?.message);
+        return enforceMemoryRateLimit(req, res, next);
+      }
+      // If Redis is down and fallback is disabled, allow the request through (fail-open)
       console.error('[RateLimit] Redis error, failing open:', error);
       next();
     }
@@ -75,6 +129,7 @@ export const authLimiter = rateLimit({
   maxRequests: 5,
   keyPrefix: 'rl:auth',
   message: 'Too many login attempts — please wait a minute before trying again.',
+  fallbackToMemory: true,
 });
 
 export const voiceLimiter = rateLimit({
@@ -82,4 +137,11 @@ export const voiceLimiter = rateLimit({
   maxRequests: 10,
   keyPrefix: 'rl:voice',
   message: 'Voice capture rate limit reached — please wait before recording again.',
+});
+
+export const toolsProcessingLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,  // 5 minutes
+  maxRequests: 10,          // Max 10 CPU-heavy conversions/compressions per 5 mins
+  keyPrefix: 'rl:tools',
+  message: 'Document processing rate limit reached — please wait a few minutes before submitting new jobs.',
 });

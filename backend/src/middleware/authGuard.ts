@@ -20,6 +20,8 @@ export const authGuard = (req: AuthRequest, res: Response, next: NextFunction): 
       token = authHeader.substring(7).trim();
     } else if (authHeader) {
       token = authHeader.trim();
+    } else if (req.query?.token && typeof req.query.token === 'string') {
+      token = req.query.token.trim();
     }
 
     if (!token) {
