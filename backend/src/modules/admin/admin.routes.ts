@@ -163,6 +163,42 @@ router.post('/users/upgrade-by-email', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/admin/users/:id/bonus-courses
+ * Add bonus course(s) to a student's limit (e.g. +1, +2)
+ */
+router.post('/users/:id/bonus-courses', async (req: Request, res: Response) => {
+  try {
+    const { count } = req.body;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const result = await adminService.addBonusCourses(id, Number(count) || 1);
+    res.json(result);
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/admin/users/bonus-courses-by-email
+ * Direct 1-click bonus course grant by email (e.g. for WhatsApp Rs. 100 extra course orders)
+ */
+router.post('/users/bonus-courses-by-email', async (req: Request, res: Response) => {
+  try {
+    const { email, count } = req.body;
+    if (!email || typeof email !== 'string') {
+      res.status(400).json({
+        success: false,
+        message: 'Student email is required.',
+      });
+      return;
+    }
+    const result = await adminService.addBonusCoursesByEmail(email, Number(count) || 1);
+    res.json(result);
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
+});
+
+/**
  * PATCH /api/admin/users/:id/status
  * Block or unblock a user account
  */

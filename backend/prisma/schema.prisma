@@ -100,6 +100,7 @@ model User {
   plan                   UserPlan             @default(free)
   aiProviderPreference   AiProviderPreference @default(system) @map("ai_provider_preference")
   activeByokProvider     ApiKeyProvider?      @map("active_byok_provider")
+  bonusCourses           Int                  @default(0) @map("bonus_courses")
 
   // Authentication & Verification
   isVerified             Boolean              @default(false) @map("is_verified")

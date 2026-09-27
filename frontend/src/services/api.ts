@@ -296,6 +296,10 @@ export const adminApi = {
     adminClient.patch(`/admin/users/${userId}/plan`, { plan }),
   upgradeUserByEmail: (email: string, plan: string) =>
     adminClient.post('/admin/users/upgrade-by-email', { email, plan }),
+  addBonusCourses: (userId: string, count: number = 1) =>
+    adminClient.post(`/admin/users/${userId}/bonus-courses`, { count }),
+  addBonusCoursesByEmail: (email: string, count: number = 1) =>
+    adminClient.post('/admin/users/bonus-courses-by-email', { email, count }),
   updateUserStatus: (userId: string, isBlocked: boolean) =>
     adminClient.patch(`/admin/users/${userId}/status`, { isBlocked }),
   getCourses: (params?: { search?: string; status?: string; page?: number; limit?: number }) =>

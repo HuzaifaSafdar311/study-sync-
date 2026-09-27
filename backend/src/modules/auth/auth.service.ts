@@ -632,6 +632,7 @@ class AuthService {
           plan: true,
           aiProviderPreference: true,
           activeByokProvider: true,
+          bonusCourses: true,
           createdAt: true,
         },
       });
@@ -656,6 +657,7 @@ class AuthService {
       plan: 'free',
       aiProviderPreference: 'system',
       activeByokProvider: null,
+      bonusCourses: 0,
       createdAt: new Date(),
     };
 
@@ -676,6 +678,9 @@ class AuthService {
 
     const normPlan = normalizePlanId(targetUser.plan);
     const planCfg = getPlanConfig(normPlan);
+    const bonusCourses = (targetUser as any).bonusCourses || 0;
+    const effectiveMaxCourses = planCfg.maxCourses + bonusCourses;
+
     const trialStatus = calculateTrialStatus({
       createdAt: targetUser.createdAt,
       plan: normPlan,
@@ -687,13 +692,15 @@ class AuthService {
       planName: planCfg.name,
       headline: planCfg.headline,
       description: planCfg.description,
-      maxCourses: planCfg.maxCourses,
+      maxCourses: effectiveMaxCourses,
+      baseMaxCourses: planCfg.maxCourses,
+      bonusCourses,
       currentCourses: userCoursesCount,
       maxUploadMB: planCfg.maxUploadMB,
       trialDaysRemaining: trialStatus.trialDaysRemaining,
       isTrialExpired: trialStatus.isTrialExpired,
       trialEndsAt: trialStatus.trialEndsAt,
-      canCreateCourse: userCoursesCount < planCfg.maxCourses && !trialStatus.isTrialExpired,
+      canCreateCourse: userCoursesCount < effectiveMaxCourses && !trialStatus.isTrialExpired,
       canUpload: !trialStatus.isTrialExpired,
       whatsappFeatures: planCfg.whatsappFeatures,
       byokFeatures: planCfg.byokFeatures,

@@ -284,11 +284,13 @@ class CourseService {
     // 1. Fetch user to verify subscription plan and trial status
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, plan: true, createdAt: true },
+      select: { id: true, email: true, plan: true, createdAt: true, bonusCourses: true },
     });
 
     const userPlan = user?.plan || 'trial';
     const planCfg = getPlanConfig(userPlan);
+    const bonusCourses = (user as any)?.bonusCourses || 0;
+    const effectiveMaxCourses = planCfg.maxCourses + bonusCourses;
     const trialStatus = calculateTrialStatus({
       createdAt: user?.createdAt,
       plan: userPlan,
@@ -316,14 +318,14 @@ class CourseService {
     });
     const currentCount = currentCourses.length;
 
-    // 4. Enforce plan course limit (1 for Free/Trial, 5 for Plus, 10 for Pro, 25 for Campus)
-    if (currentCount >= planCfg.maxCourses) {
+    // 4. Enforce plan course limit + admin bonus courses
+    if (currentCount >= effectiveMaxCourses) {
       const isTopTier = planCfg.normalizedId === 'pro' || planCfg.normalizedId === 'campus';
       if (isTopTier) {
         const extraCourseUrl = buildWhatsAppExtraCourseUrl(user?.email);
         throw Object.assign(
           new Error(
-            `Aap StudySync ke sab se heavy plan (${planCfg.name}) par hain aur aapki course limit (${currentCount}/${planCfg.maxCourses}) reach ho chuki hai. Agar aap mazeed course add karna chahte hain to sirf Rs. 100 (100 PKR) me milega! WhatsApp par rabta karein.`
+            `Aap StudySync ke sab se heavy plan (${planCfg.name}) par hain aur aapki course limit (${currentCount}/${effectiveMaxCourses}) reach ho chuki hai. Agar aap mazeed course add karna chahte hain to sirf Rs. 100 (100 PKR) me milega! WhatsApp par rabta karein.`
           ),
           {
             statusCode: 403,
@@ -331,7 +333,7 @@ class CourseService {
             isTopTier: true,
             extraCoursePricePkr: 100,
             currentCount,
-            maxAllowed: planCfg.maxCourses,
+            maxAllowed: effectiveMaxCourses,
             planName: planCfg.name,
             upgradeUrl: extraCourseUrl,
           }
@@ -342,14 +344,14 @@ class CourseService {
       const upgradeUrl = buildWhatsAppPurchaseUrl(nextPlan as any, 'monthly', user?.email);
       throw Object.assign(
         new Error(
-          `Course limit reached (${currentCount}/${planCfg.maxCourses} courses for ${planCfg.name}). Please upgrade your plan on WhatsApp to create more courses.`
+          `Course limit reached (${currentCount}/${effectiveMaxCourses} courses for ${planCfg.name}). Please upgrade your plan on WhatsApp to create more courses.`
         ),
         {
           statusCode: 403,
           planLimitReached: true,
           isTopTier: false,
           currentCount,
-          maxAllowed: planCfg.maxCourses,
+          maxAllowed: effectiveMaxCourses,
           planName: planCfg.name,
           upgradeUrl,
         }

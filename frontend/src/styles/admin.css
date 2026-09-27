@@ -1303,3 +1303,97 @@
   }
 }
 
+/* ─── Bonus Course Controls & Badges ──────────────────────────────── */
+.admin-bonus-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #F3E8FF;
+  color: #7E22CE;
+  border: 1px solid #E9D5FF;
+}
+
+.admin-btn-bonus {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #F8FAFC;
+  color: #4F46E5;
+  border: 1px solid #C7D2FE;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.admin-btn-bonus:hover:not(:disabled) {
+  background: #4F46E5;
+  color: #FFFFFF;
+  border-color: #4F46E5;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+}
+
+.admin-btn-bonus:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── 360° Student Modal ────────────────────────────────────────────── */
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: adminFadeIn 0.2s ease-out;
+}
+
+.admin-modal-card {
+  background: #FFFFFF;
+  width: 100%;
+  max-width: 620px;
+  max-height: 90vh;
+  border-radius: 16px;
+  border: 1px solid var(--admin-border);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.admin-modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--admin-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F8FAFC;
+}
+
+.admin-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.admin-modal-footer {
+  padding: 14px 24px;
+  border-top: 1px solid var(--admin-border);
+  display: flex;
+  justify-content: flex-end;
+  background: #F8FAFC;
+}
+

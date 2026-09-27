@@ -20,6 +20,7 @@ export interface AdminUserListItem {
   chatMessagesCount: number;
   createdAt: string;
   lastActive?: string;
+  bonusCourses?: number;
   // Per-user requested metrics
   systemAiUsage?: {
     used: number;
@@ -178,7 +179,7 @@ class AdminService {
     try {
       let query = supabase
         .from('users')
-        .select('id, full_name, email, role, plan, is_blocked, is_verified, university, major, ai_provider_preference, active_byok_provider, whatsapp_number, created_at, updated_at', { count: 'exact' });
+        .select('id, full_name, email, role, plan, is_blocked, is_verified, university, major, ai_provider_preference, active_byok_provider, bonus_courses, whatsapp_number, created_at, updated_at', { count: 'exact' });
 
       if (params.search && params.search.trim()) {
         const s = params.search.trim().toLowerCase();
@@ -253,6 +254,7 @@ class AdminService {
             activeByokProvider: camel.activeByokProvider,
             whatsappNumber: camel.whatsappNumber,
             coursesCount: courseCountMap.get(camel.id) || 0,
+            bonusCourses: Number(camel.bonusCourses) || 0,
             tasksCount: taskCountMap.get(camel.id) || 0,
             chatMessagesCount: messageCountMap.get(camel.id) || 0,
             createdAt: camel.createdAt,
@@ -418,6 +420,91 @@ class AdminService {
       };
     } catch (err: any) {
       console.error('[AdminService] updateUserStatus error:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Add bonus courses to a user's account (admin can grant extra courses beyond plan limit)
+   */
+  async addBonusCourses(userId: string, count: number) {
+    try {
+      if (!count || count < 1 || count > 50) {
+        throw Object.assign(new Error('Count must be between 1 and 50.'), { statusCode: 400 });
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw Object.assign(new Error('User not found.'), { statusCode: 404 });
+      }
+
+      const currentBonus = (user as any).bonusCourses || 0;
+      const newBonus = currentBonus + count;
+
+      // Update Prisma
+      await prisma.user.update({
+        where: { id: userId },
+        data: { bonusCourses: newBonus } as any,
+      });
+
+      // Sync to Supabase
+      try {
+        await supabase
+          .from('users')
+          .update({ bonus_courses: newBonus, updated_at: new Date().toISOString() })
+          .eq('id', userId);
+      } catch (sbErr: any) {
+        console.warn('[AdminService] Supabase bonus_courses sync notice:', sbErr.message);
+      }
+
+      const { getPlanConfig } = await import('../../config/plans');
+      const planCfg = getPlanConfig(user.plan);
+      const effectiveMax = planCfg.maxCourses + newBonus;
+
+      return {
+        success: true,
+        message: `Added ${count} bonus course(s) for ${user.email}. New limit: ${effectiveMax} courses (${planCfg.maxCourses} plan + ${newBonus} bonus).`,
+        bonusCourses: newBonus,
+        effectiveMaxCourses: effectiveMax,
+      };
+    } catch (err: any) {
+      console.error('[AdminService] addBonusCourses error:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Add bonus courses to a user's account by email (for WhatsApp orders)
+   */
+  async addBonusCoursesByEmail(email: string, count: number) {
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      let user = await prisma.user.findFirst({
+        where: { email: cleanEmail },
+      });
+
+      if (!user) {
+        const { data: sbUser } = await supabase
+          .from('users')
+          .select('id, email, full_name, plan')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+
+        if (sbUser) {
+          user = toCamelCase(sbUser) as any;
+        }
+      }
+
+      if (!user) {
+        throw Object.assign(
+          new Error(`No student account found registered under email: "${cleanEmail}". Please verify spelling.`),
+          { statusCode: 404 }
+        );
+      }
+
+      return await this.addBonusCourses(user.id, count);
+    } catch (err: any) {
+      console.error('[AdminService] addBonusCoursesByEmail error:', err);
       throw err;
     }
   }

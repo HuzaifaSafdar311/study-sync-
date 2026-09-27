@@ -50,6 +50,11 @@ export default function AdminPortal() {
   const [upgradePlan, setUpgradePlan] = useState<'trial' | 'plus' | 'pro' | 'campus'>('plus');
   const [isUpgradingEmail, setIsUpgradingEmail] = useState(false);
 
+  // Fast-Action Bonus Course Desk State (for WhatsApp Rs. 100 extra course orders)
+  const [bonusEmail, setBonusEmail] = useState('');
+  const [bonusCount, setBonusCount] = useState<number>(1);
+  const [isAddingBonusEmail, setIsAddingBonusEmail] = useState(false);
+
   const [coursesList, setCoursesList] = useState<any[]>([]);
   const [coursesPagination, setCoursesPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [courseSearch, setCourseSearch] = useState('');
@@ -236,6 +241,48 @@ export default function AdminPortal() {
       toast.error(err?.response?.data?.message || 'Failed to upgrade student plan.');
     } finally {
       setIsUpgradingEmail(false);
+    }
+  };
+
+  const handleAddBonusCourses = async (userId: string, count: number = 1) => {
+    setActionLoadingId(userId);
+    try {
+      const res = await adminApi.addBonusCourses(userId, count);
+      if (res.data.success) {
+        toast.success(res.data.message || `Added ${count} bonus course(s)!`);
+        setUsersList((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, bonusCourses: res.data.bonusCourses } : u))
+        );
+        if (selectedUserForModal && selectedUserForModal.id === userId) {
+          setSelectedUserForModal((prev: any) => ({ ...prev, bonusCourses: res.data.bonusCourses }));
+        }
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to add bonus courses');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDirectBonusEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bonusEmail.trim()) {
+      toast.error('Please enter the student email address.');
+      return;
+    }
+    setIsAddingBonusEmail(true);
+    try {
+      const res = await adminApi.addBonusCoursesByEmail(bonusEmail.trim(), Number(bonusCount) || 1);
+      if (res.data.success) {
+        toast.success(res.data.message || `Bonus course(s) granted successfully!`);
+        setBonusEmail('');
+        setBonusCount(1);
+        fetchUsers(usersPagination.page || 1);
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to grant bonus course.');
+    } finally {
+      setIsAddingBonusEmail(false);
     }
   };
 
@@ -711,93 +758,181 @@ export default function AdminPortal() {
         {/* ─── TAB 2: STUDENT DIRECTORY ─────────────────────────────────── */}
         {activeTab === 'users' && (
           <div className="animate-fadeIn">
-            {/* ⚡ Instant WhatsApp Plan Upgrade Desk */}
-            {/* ⚡ Instant WhatsApp Plan Upgrade Desk */}
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #F0FDF4 0%, #EEF2FF 100%)',
-                border: '1px solid #BBF7D0',
-                borderRadius: '14px',
-                padding: '16px 20px',
-                marginBottom: '20px',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div
-                  style={{
-                    width: '30px',
-                    height: '30px',
-                    borderRadius: '8px',
-                    background: '#16A34A',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#FFF',
-                    flexShrink: 0,
-                  }}
-                >
-                  <MessageSquare size={16} />
+            {/* ⚡ Instant WhatsApp Desks: Plan Upgrades & Extra Courses */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+              {/* Desk 1: Subscription Plan Upgrade */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #F0FDF4 0%, #EEF2FF 100%)',
+                  border: '1px solid #BBF7D0',
+                  borderRadius: '14px',
+                  padding: '16px 20px',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div
+                    style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '8px',
+                      background: '#16A34A',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#FFF',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <MessageSquare size={16} />
+                  </div>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>
+                    Instant Plan Upgrade
+                  </h4>
                 </div>
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>
-                  Instant Upgrade
-                </h4>
+
+                <form onSubmit={handleDirectEmailUpgrade} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="email"
+                    placeholder="Student email..."
+                    value={upgradeEmail}
+                    onChange={(e) => setUpgradeEmail(e.target.value)}
+                    className="admin-input-search"
+                    style={{
+                      flex: '1 1 200px',
+                      minWidth: '170px',
+                      background: '#FFFFFF',
+                      border: '1px solid var(--admin-border)',
+                    }}
+                  />
+
+                  <select
+                    value={upgradePlan}
+                    onChange={(e) => setUpgradePlan(e.target.value as any)}
+                    className="admin-select"
+                    style={{ flex: '0 0 auto', minWidth: '150px' }}
+                  >
+                    <option value="trial">Free Trial (1 Crs)</option>
+                    <option value="plus">Plus (5 Crs)</option>
+                    <option value="pro">Pro (10 Crs)</option>
+                    <option value="campus">Campus (25 Crs)</option>
+                  </select>
+
+                  <button
+                    type="submit"
+                    disabled={isUpgradingEmail}
+                    className="admin-btn-primary"
+                    style={{
+                      background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                      borderColor: '#059669',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    {isUpgradingEmail ? (
+                      <>
+                        <RefreshCw size={14} className="admin-spin" /> Upgrading...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={14} /> Upgrade Plan
+                      </>
+                    )}
+                  </button>
+                </form>
               </div>
 
-              <form onSubmit={handleDirectEmailUpgrade} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  type="email"
-                  placeholder="Student email..."
-                  value={upgradeEmail}
-                  onChange={(e) => setUpgradeEmail(e.target.value)}
-                  className="admin-input-search"
-                  style={{
-                    flex: '1 1 240px',
-                    minWidth: '200px',
-                    background: '#FFFFFF',
-                    border: '1px solid var(--admin-border)',
-                  }}
-                />
+              {/* Desk 2: Instant Extra Courses Grant (WhatsApp Rs. 100) */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #F5F3FF 100%)',
+                  border: '1px solid #E9D5FF',
+                  borderRadius: '14px',
+                  padding: '16px 20px',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div
+                    style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '8px',
+                      background: '#7C3AED',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#FFF',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <BookOpen size={16} />
+                  </div>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>
+                    Grant Extra Course (Rs. 100 WhatsApp)
+                  </h4>
+                </div>
 
-                <select
-                  value={upgradePlan}
-                  onChange={(e) => setUpgradePlan(e.target.value as any)}
-                  className="admin-select"
-                  style={{ flex: '0 0 auto', minWidth: '180px' }}
-                >
-                  <option value="trial">Free Trial (1 Crs)</option>
-                  <option value="plus">Plus (5 Crs)</option>
-                  <option value="pro">Pro (10 Crs)</option>
-                  <option value="campus">Campus (25 Crs)</option>
-                </select>
+                <form onSubmit={handleDirectBonusEmail} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="email"
+                    placeholder="Student email..."
+                    value={bonusEmail}
+                    onChange={(e) => setBonusEmail(e.target.value)}
+                    className="admin-input-search"
+                    style={{
+                      flex: '1 1 200px',
+                      minWidth: '170px',
+                      background: '#FFFFFF',
+                      border: '1px solid var(--admin-border)',
+                    }}
+                  />
 
-                <button
-                  type="submit"
-                  disabled={isUpgradingEmail}
-                  className="admin-btn-primary"
-                  style={{
-                    background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-                    borderColor: '#059669',
-                    whiteSpace: 'nowrap',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  {isUpgradingEmail ? (
-                    <>
-                      <RefreshCw size={14} className="admin-spin" /> Upgrading...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle size={14} /> Upgrade Plan
-                    </>
-                  )}
-                </button>
-              </form>
+                  <select
+                    value={bonusCount}
+                    onChange={(e) => setBonusCount(Number(e.target.value))}
+                    className="admin-select"
+                    style={{ flex: '0 0 auto', minWidth: '110px' }}
+                  >
+                    <option value={1}>+1 Course</option>
+                    <option value={2}>+2 Courses</option>
+                    <option value={3}>+3 Courses</option>
+                    <option value={5}>+5 Courses</option>
+                  </select>
+
+                  <button
+                    type="submit"
+                    disabled={isAddingBonusEmail}
+                    className="admin-btn-primary"
+                    style={{
+                      background: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
+                      borderColor: '#6D28D9',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    {isAddingBonusEmail ? (
+                      <>
+                        <RefreshCw size={14} className="admin-spin" /> Adding...
+                      </>
+                    ) : (
+                      <>
+                        <Zap size={14} /> Add Extra
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
             </div>
 
             <div className="admin-control-bar">
@@ -872,7 +1007,9 @@ export default function AdminPortal() {
                   ) : (
                     usersList.map((u) => {
                       const normPlan = u.plan === 'free' ? 'trial' : (u.plan || 'trial');
-                      const maxCourses = normPlan === 'pro' ? 10 : normPlan === 'plus' ? 5 : normPlan === 'campus' ? 25 : 1;
+                      const baseMaxCourses = normPlan === 'pro' ? 10 : normPlan === 'plus' ? 5 : normPlan === 'campus' ? 25 : 1;
+                      const bonusCourses = u.bonusCourses || 0;
+                      const effectiveMaxCourses = baseMaxCourses + bonusCourses;
                       const maxMB = normPlan === 'pro' ? 150 : normPlan === 'plus' ? 50 : normPlan === 'campus' ? 500 : 10;
                       const courseCount = u.coursesCount || 0;
                       const uploadMB = u.uploads?.totalMB || 0;
@@ -917,18 +1054,27 @@ export default function AdminPortal() {
                             </select>
                           </td>
 
-                          {/* 3. Courses & Uploads */}
+                          {/* 3. Courses & Uploads with +1 Increment Button */}
                           <td>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: courseCount >= maxCourses ? '#DC2626' : '#0F172A' }}>
-                                  {courseCount} / {maxCourses} Crs
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: courseCount >= effectiveMaxCourses ? '#DC2626' : '#0F172A' }}>
+                                  {courseCount} / {effectiveMaxCourses} Crs
                                 </span>
-                                {courseCount >= maxCourses && (
-                                  <span style={{ fontSize: '0.62rem', background: '#FEE2E2', color: '#991B1B', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
-                                    MAX
+                                {bonusCourses > 0 && (
+                                  <span className="admin-bonus-badge" title={`${bonusCourses} bonus courses granted by admin`}>
+                                    +{bonusCourses} Bonus
                                   </span>
                                 )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddBonusCourses(u.id, 1)}
+                                  disabled={actionLoadingId === u.id}
+                                  className="admin-btn-bonus"
+                                  title="Add +1 course limit for this student"
+                                >
+                                  {actionLoadingId === u.id ? '...' : '+1 Crs'}
+                                </button>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <span className="telemetry-chip storage-ok" title={`${uploadFiles} files uploaded`}>
@@ -1610,6 +1756,169 @@ export default function AdminPortal() {
         )}
         </main>
       </div>
+
+      {/* ─── 360° Student Telemetry & Quota Modal ──────────────────────── */}
+      {selectedUserForModal && (() => {
+        const u = selectedUserForModal;
+        const normPlan = u.plan === 'free' ? 'trial' : (u.plan || 'trial');
+        const baseMax = normPlan === 'pro' ? 10 : normPlan === 'plus' ? 5 : normPlan === 'campus' ? 25 : 1;
+        const bonus = u.bonusCourses || 0;
+        const effectiveMax = baseMax + bonus;
+        const courseCount = u.coursesCount || 0;
+
+        return (
+          <div className="admin-modal-backdrop" onClick={() => setSelectedUserForModal(null)}>
+            <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div className="admin-user-avatar" style={{ width: '40px', height: '40px', fontSize: '1.1rem' }}>
+                    {u.fullName?.[0]?.toUpperCase() || 'S'}
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#0F172A' }}>{u.fullName}</h3>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748B' }}>{u.email}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForModal(null)}
+                  className="admin-btn-secondary"
+                  style={{ padding: '6px', borderRadius: '50%' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="admin-modal-body">
+                {/* Course Quota & Bonus Increments */}
+                <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid var(--admin-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0F172A' }}>Course Limit & Capacity</span>
+                    <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#4F46E5' }}>
+                      {courseCount} / {effectiveMax} Courses
+                    </span>
+                  </div>
+                  <p style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#64748B' }}>
+                    Plan base limit: <strong>{baseMax}</strong> courses. Bonus courses granted by Admin: <strong style={{ color: '#7E22CE' }}>+{bonus}</strong>.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#334155' }}>Grant Extra:</span>
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === u.id}
+                      onClick={() => handleAddBonusCourses(u.id, 1)}
+                      className="admin-btn-bonus"
+                      style={{ padding: '5px 12px', fontSize: '0.8rem' }}
+                    >
+                      +1 Course
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === u.id}
+                      onClick={() => handleAddBonusCourses(u.id, 2)}
+                      className="admin-btn-bonus"
+                      style={{ padding: '5px 12px', fontSize: '0.8rem' }}
+                    >
+                      +2 Courses
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === u.id}
+                      onClick={() => handleAddBonusCourses(u.id, 5)}
+                      className="admin-btn-bonus"
+                      style={{ padding: '5px 12px', fontSize: '0.8rem' }}
+                    >
+                      +5 Courses
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid Details */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div style={{ padding: '12px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--admin-border)' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Subscription Plan</span>
+                    <div style={{ marginTop: '6px' }}>
+                      <select
+                        className="admin-select"
+                        style={{ width: '100%', fontSize: '0.82rem' }}
+                        value={normPlan}
+                        disabled={actionLoadingId === u.id}
+                        onChange={(e) => {
+                          handlePlanChange(u.id, e.target.value);
+                          setSelectedUserForModal((prev: any) => ({ ...prev, plan: e.target.value }));
+                        }}
+                      >
+                        <option value="trial">Free Trial (1 Crs • 10MB)</option>
+                        <option value="plus">StudySync Plus (5 Crs • 50MB)</option>
+                        <option value="pro">StudySync Pro (10 Crs • 150MB)</option>
+                        <option value="campus">Campus Enterprise (25 Crs • 500MB)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '12px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--admin-border)' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Account Status</span>
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className={`admin-pill ${u.isBlocked ? 'status-blocked' : 'status-active'}`}>
+                        {u.isBlocked ? 'Suspended' : 'Active'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleToggleUserBlock(u.id, !!u.isBlocked);
+                          setSelectedUserForModal((prev: any) => ({ ...prev, isBlocked: !prev.isBlocked }));
+                        }}
+                        className={`admin-btn-action ${u.isBlocked ? 'reactivate' : 'suspend'}`}
+                        style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                      >
+                        {u.isBlocked ? 'Reactivate' : 'Suspend'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '12px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--admin-border)' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B' }}>AI Provider / Mode</span>
+                    <div style={{ marginTop: '4px', fontWeight: 600, fontSize: '0.88rem', color: '#0F172A' }}>
+                      {u.aiProviderPreference === 'byok' ? `BYOK (${u.activeByokProvider || 'Gemini/Groq'})` : 'System AI Pool'}
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '12px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--admin-border)' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Storage Used</span>
+                    <div style={{ marginTop: '4px', fontWeight: 600, fontSize: '0.88rem', color: '#0F172A' }}>
+                      {u.uploads?.totalMB || 0} MB ({u.uploads?.filesCount || 0} files)
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '12px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--admin-border)' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B' }}>WhatsApp Integration</span>
+                    <div style={{ marginTop: '4px', fontWeight: 600, fontSize: '0.88rem', color: '#0F172A' }}>
+                      {u.whatsapp?.isIntegrated || u.whatsappNumber ? `Linked (${u.whatsappNumber || u.whatsapp?.number})` : 'Not Linked'}
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '12px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--admin-border)' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Academic Profile</span>
+                    <div style={{ marginTop: '4px', fontWeight: 600, fontSize: '0.85rem', color: '#0F172A' }}>
+                      {u.university || 'N/A'} {u.major ? `(${u.major})` : ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForModal(null)}
+                  className="admin-btn-secondary"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
