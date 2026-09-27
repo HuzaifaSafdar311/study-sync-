@@ -58,7 +58,7 @@ Thumbs.db
 
 .vercel
 
-# Scratch/test scripts & temp files at root
+# Scratch/test scripts & temp files
 scratch_*.cjs
 scratch_*.mjs
 create_sample_img.ps1
@@ -66,3 +66,7 @@ tools_section.md
 *.pdf
 *.docx
 studysync-plan/
+*_raw.png
+test_*.png
+out_*.txt
+system_chat_usage.json
