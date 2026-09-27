@@ -95,14 +95,6 @@ export default function Landing() {
     setActiveSlide((prev) => (prev + 1) % robotSlides.length);
   };
 
-  const popularTopics = [
-    'Machine Learning',
-    'Data Structures',
-    'Calculus',
-    'Database Systems',
-    'Software Architecture',
-  ];
-
   const currentRobot = robotSlides[activeSlide];
   const CurrentIcon = currentRobot.icon;
 
@@ -175,33 +167,13 @@ export default function Landing() {
             </button>
           </form>
 
-          {/* Popular Topic Pills */}
-          <div className="ss-hero-slider-pills">
-            <span style={{ fontSize: '0.8125rem', color: '#CBD5E1', fontWeight: 500 }}>
-              Popular:
-            </span>
-            {popularTopics.map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => {
-                  setSearchQuery(item);
-                  navigate(`/register?topic=${encodeURIComponent(item)}`);
-                }}
-                className="ss-hero-slider-pill"
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-
           {/* Autonomous Trust Highlights */}
           <div
             style={{
               display: 'flex',
               gap: '20px',
               alignItems: 'center',
-              marginTop: '36px',
+              marginTop: '28px',
               flexWrap: 'wrap',
               fontSize: '0.8125rem',
               color: '#CBD5E1',

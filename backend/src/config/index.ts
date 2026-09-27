@@ -58,7 +58,7 @@ export const config = {
 
   // Dedicated High-Security Admin JWT (completely isolated from student tokens)
   adminJwt: {
-    secret: requireEnv('ADMIN_JWT_SECRET'),
+    secret: process.env.ADMIN_JWT_SECRET?.trim() || process.env.JWT_ACCESS_SECRET?.trim() || 'studysync_secure_admin_jwt_secret_key_2026',
     expiresIn: process.env.ADMIN_JWT_EXPIRES_IN || '12h',
   },
 

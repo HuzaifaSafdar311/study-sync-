@@ -26,6 +26,7 @@ export default function PublicHeader() {
     { name: 'About Us', path: '/about' },
     { name: 'Features', path: '/features' },
     { name: 'Courses', path: '/courses' },
+    { name: 'Tools', path: '/tools' },
     { name: 'Pricing', path: '/pricing', hasPulse: true },
     { name: 'Blog', path: '/blog' },
     { name: 'Contact', path: '/contact' },
@@ -34,21 +35,17 @@ export default function PublicHeader() {
   return (
     <header className={`ss-landing-header ${scrolled ? 'ss-header-scrolled' : ''}`}>
       <div className="ss-landing-nav-inner">
-        {/* Brand Logo & Pro Status */}
-        <Link to="/" className="ss-landing-brand">
+        {/* Brand Logo */}
+        <Link to="/" className="ss-landing-brand" title="StudySync AI — Home">
           <img
             src="/studysync-logo-horizontal.png"
             alt="StudySync AI"
             className="ss-landing-brand-logo-img"
           />
-          <span className="ss-landing-badge-pro">
-            <span className="ss-pulse-dot" />
-            <span>AI 2.0</span>
-          </span>
         </Link>
 
-        {/* Center: Desktop Modern Floating Pill Dock */}
-        <nav className="ss-landing-nav-dock ss-desktop-only">
+        {/* Center: Desktop Modern Unified Nav Links (No pill/dock border) */}
+        <nav className="ss-landing-nav-menu ss-desktop-only" aria-label="Main Navigation">
           {navLinks.map((link) => (
             <NavLink
               key={link.path}
