@@ -745,7 +745,7 @@ function MergePdfTab() {
         const bytes = await file.arrayBuffer();
         const srcPdf = await PDFDocument.load(bytes);
         const copiedPages = await mergedPdf.copyPages(srcPdf, srcPdf.getPageIndices());
-        copiedPages.forEach((p) => mergedPdf.addPage(p));
+        copiedPages.forEach((p: any) => mergedPdf.addPage(p));
       }
 
       const mergedBytes = await mergedPdf.save();
@@ -949,7 +949,7 @@ function SplitPdfTab() {
       const newPdf = await PDFDocument.create();
       const pageIndices = Array.from(pagesToExtract).sort((a, b) => a - b);
       const copied = await newPdf.copyPages(srcPdf, pageIndices);
-      copied.forEach((p) => newPdf.addPage(p));
+      copied.forEach((p: any) => newPdf.addPage(p));
 
       const outBytes = await newPdf.save();
       const blob = new Blob([outBytes as any], { type: 'application/pdf' });
