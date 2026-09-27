@@ -5833,6 +5833,7 @@ svg.error-icon {
   justify-content: center;
   box-sizing: border-box;
   padding-top: 74px;
+  background-color: #0B0F19;
 }
 
 @media (max-width: 980px) {
@@ -5876,19 +5877,18 @@ svg.error-icon {
   display: block;
 }
 
-/* Black overlay with low opacity, higher on left and lower on right */
+/* Dark low-opacity background overlay over the entire hero */
 .ss-hero-bg-overlay {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
   background: linear-gradient(
-    to right,
-    rgba(0, 0, 0, 0.82) 0%,
-    rgba(0, 0, 0, 0.70) 32%,
-    rgba(0, 0, 0, 0.40) 60%,
-    rgba(0, 0, 0, 0.16) 82%,
-    rgba(0, 0, 0, 0.05) 100%
+    135deg,
+    rgba(11, 15, 25, 0.88) 0%,
+    rgba(15, 23, 42, 0.76) 42%,
+    rgba(15, 23, 42, 0.62) 75%,
+    rgba(11, 15, 25, 0.68) 100%
   );
 }
 
@@ -5896,9 +5896,9 @@ svg.error-icon {
   .ss-hero-bg-overlay {
     background: linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.78) 0%,
-      rgba(0, 0, 0, 0.85) 50%,
-      rgba(0, 0, 0, 0.45) 100%
+      rgba(11, 15, 25, 0.90) 0%,
+      rgba(15, 23, 42, 0.82) 50%,
+      rgba(11, 15, 25, 0.78) 100%
     );
   }
 }
