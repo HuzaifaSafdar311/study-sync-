@@ -371,7 +371,7 @@ class AuthController {
       res.redirect(authData.url);
     } else {
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-      res.redirect(`${frontendUrl}/login?google_error=${encodeURIComponent('Google OAuth is not configured on backend yet.')}`);
+      res.redirect(`${frontendUrl}/login?google_unconfigured=true`);
     }
   }
 
