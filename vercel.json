@@ -1,6 +1,6 @@
 {
-  "installCommand": "npm install && cd backend && npm install && cd ../frontend && npm install",
-  "buildCommand": "cd frontend && npm run build",
+  "installCommand": "npm install && cd backend && npm install && npm run prisma:generate && cd ../frontend && npm install",
+  "buildCommand": "cd backend && npm run prisma:generate && cd ../frontend && npm run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
