@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
+const uuidv4 = () => crypto.randomUUID();
 import { TOOLS_INPUT_DIR } from './tools.queue';
 import { toolsService } from './tools.service';
 
