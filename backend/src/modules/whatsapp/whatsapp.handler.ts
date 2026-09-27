@@ -8,6 +8,7 @@ import { taskService } from '../tasks/task.service';
 import { scheduleTaskReminders } from '../notifications/notification.queue';
 import { parseAcademicDeadline } from '../ai/agent.service';
 import prisma, { loadUserSettings } from '../../config/database';
+import { systemQuotaService } from '../ai/systemQuota.service';
 
 function matchCourse(query: string, courses: any[]): any {
   if (!query || !courses || courses.length === 0) return null;
@@ -605,12 +606,26 @@ export class WhatsAppHandler {
         return;
       }
       try {
+        // Enforce System API quota (max 3 messages if not on BYOK)
+        const quota = await systemQuotaService.checkSystemQuota(userId);
+        if (!quota.allowed) {
+          await service.sendMessage(
+            replyJid,
+            `⚠️ *Free System AI Limit Reached (3/3)*\n\nAapka 3 free system messages ka quota mukammal ho chuka hai.\n\nPlease StudySync web portal (*Settings ➔ AI API Keys*) par ja kar apni Google Gemini ya Groq API key lagayein taake chatbot WhatsApp par bhi bina rukawat ke active ho sake! 🚀`
+          );
+          return;
+        }
+
         // Forward query to courseService.queryCourseRAG
         const ragResult = await courseService.queryCourseRAG(
           userId,
           session.activeCourseId,
           text
         );
+
+        if (!quota.isByok) {
+          systemQuotaService.incrementSystemUsage(userId);
+        }
 
         let answer = ragResult.answer || 'I have processed your request.';
 

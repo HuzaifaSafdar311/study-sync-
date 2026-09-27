@@ -984,25 +984,33 @@ export class AgentService {
     const widgets: ChatWidgetPayload[] = [];
     const toolCallLogs: Array<{ name: string; args: any; result: any }> = [];
 
-    // ─── 1. PRIMARY ENGINE: Ultra-Fast Groq Agent Loop (<1s response across 9 keys) ───
-    try {
-      const groqResult = await this.runGroqAgentLoop(
-        courseId,
-        courseName,
-        prompt,
-        history,
-        contextChunks,
-        userId,
-        enableThink
-      );
-      if (groqResult && (groqResult.answer || (groqResult.widgets && groqResult.widgets.length > 0))) {
-        return groqResult;
+    const resolved = await resolveAIClientForUser(userId);
+
+    // If user explicitly configured BYOK with Gemini, skip Groq and execute Gemini agent loop directly with user's key
+    if (resolved.isByok && resolved.provider === 'gemini' && resolved.geminiClient) {
+      console.log(`[AgentService] 🔑 User BYOK Active: Executing with User's Gemini API Key.`);
+    } else {
+      // ─── 1. PRIMARY ENGINE: Ultra-Fast Groq Agent Loop (<1s response across 9 keys) ───
+      try {
+        const groqResult = await this.runGroqAgentLoop(
+          courseId,
+          courseName,
+          prompt,
+          history,
+          contextChunks,
+          userId,
+          enableThink
+        );
+        if (groqResult && (groqResult.answer || (groqResult.widgets && groqResult.widgets.length > 0))) {
+          return groqResult;
+        }
+      } catch (groqErr: any) {
+        console.warn('[AgentService] Primary Groq agent loop failed, falling back to Gemini:', groqErr?.message);
       }
-    } catch (groqErr: any) {
-      console.warn('[AgentService] Primary Groq agent loop failed, falling back to Gemini:', groqErr?.message);
     }
 
-    if (!genAI) {
+    const primaryGemini = (resolved.isByok && resolved.geminiClient) ? resolved.geminiClient : genAI;
+    if (!primaryGemini) {
       return {
         answer: 'Generative AI service is currently unavailable.',
         widgets: [],
@@ -1193,7 +1201,7 @@ HEAVY FILE / DOCUMENT UPLOAD RULE (CRITICAL — STRICTLY ENFORCED):
     let modelInstance = null;
     for (const mName of AGENT_CANDIDATE_MODELS) {
       try {
-        modelInstance = genAI.getGenerativeModel({
+        modelInstance = primaryGemini.getGenerativeModel({
           model: mName,
           systemInstruction,
           tools: [{ functionDeclarations: toolDeclarations }],
@@ -1263,8 +1271,10 @@ HEAVY FILE / DOCUMENT UPLOAD RULE (CRITICAL — STRICTLY ENFORCED):
 
       try {
         let res: any = null;
-        const clients = getAllGeminiClients();
-        const effectiveClients = clients.length > 0 ? clients : (genAI ? [genAI] : []);
+        const clients = (resolved.isByok && resolved.geminiClient)
+          ? [resolved.geminiClient]
+          : getAllGeminiClients();
+        const effectiveClients = clients.length > 0 ? clients : (primaryGemini ? [primaryGemini] : []);
         for (const mName of AGENT_CANDIDATE_MODELS) {
           for (const client of effectiveClients) {
             try {

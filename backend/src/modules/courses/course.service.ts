@@ -9,6 +9,12 @@ import { webTools } from '../ai/tools/web.tools';
 import { scheduleTaskReminders } from '../notifications/notification.queue';
 import { deeplyCalculateAcademicDeadline } from '../../utils/systemDateTime';
 import { cleanMojibake, repairChunkMathDelimiters } from '../../utils/textSanitizer';
+import {
+  getPlanConfig,
+  calculateTrialStatus,
+  buildWhatsAppPurchaseUrl,
+  buildWhatsAppExtraCourseUrl,
+} from '../../config/plans';
 
 const baseDir = process.env.VERCEL ? '/tmp' : process.cwd();
 const CHAT_HISTORIES_DIR = path.resolve(baseDir, 'chat_histories');
@@ -275,6 +281,81 @@ class CourseService {
    * Create a new course
    */
   async createCourse(userId: string, input: CreateCourseInput) {
+    // 1. Fetch user to verify subscription plan and trial status
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, plan: true, createdAt: true },
+    });
+
+    const userPlan = user?.plan || 'trial';
+    const planCfg = getPlanConfig(userPlan);
+    const trialStatus = calculateTrialStatus({
+      createdAt: user?.createdAt,
+      plan: userPlan,
+    });
+
+    // 2. Check if 7-day trial has expired
+    if (trialStatus.isTrial && trialStatus.isTrialExpired) {
+      const upgradeUrl = buildWhatsAppPurchaseUrl('plus', 'monthly', user?.email);
+      throw Object.assign(
+        new Error(
+          `Your 7-day Free Trial has expired. Please upgrade to StudySync Plus (5 courses) or Pro (10 courses) on WhatsApp to continue creating courses.`
+        ),
+        {
+          statusCode: 403,
+          planLimitReached: true,
+          isTrialExpired: true,
+          upgradeUrl,
+        }
+      );
+    }
+
+    // 3. Count user's current active courses
+    const currentCourses = await prisma.course.findMany({
+      where: { userId },
+    });
+    const currentCount = currentCourses.length;
+
+    // 4. Enforce plan course limit (1 for Free/Trial, 5 for Plus, 10 for Pro, 25 for Campus)
+    if (currentCount >= planCfg.maxCourses) {
+      const isTopTier = planCfg.normalizedId === 'pro' || planCfg.normalizedId === 'campus';
+      if (isTopTier) {
+        const extraCourseUrl = buildWhatsAppExtraCourseUrl(user?.email);
+        throw Object.assign(
+          new Error(
+            `Aap StudySync ke sab se heavy plan (${planCfg.name}) par hain aur aapki course limit (${currentCount}/${planCfg.maxCourses}) reach ho chuki hai. Agar aap mazeed course add karna chahte hain to sirf Rs. 100 (100 PKR) me milega! WhatsApp par rabta karein.`
+          ),
+          {
+            statusCode: 403,
+            planLimitReached: true,
+            isTopTier: true,
+            extraCoursePricePkr: 100,
+            currentCount,
+            maxAllowed: planCfg.maxCourses,
+            planName: planCfg.name,
+            upgradeUrl: extraCourseUrl,
+          }
+        );
+      }
+
+      const nextPlan = (planCfg.normalizedId === 'trial' || planCfg.normalizedId === 'free') ? 'plus' : 'pro';
+      const upgradeUrl = buildWhatsAppPurchaseUrl(nextPlan as any, 'monthly', user?.email);
+      throw Object.assign(
+        new Error(
+          `Course limit reached (${currentCount}/${planCfg.maxCourses} courses for ${planCfg.name}). Please upgrade your plan on WhatsApp to create more courses.`
+        ),
+        {
+          statusCode: 403,
+          planLimitReached: true,
+          isTopTier: false,
+          currentCount,
+          maxAllowed: planCfg.maxCourses,
+          planName: planCfg.name,
+          upgradeUrl,
+        }
+      );
+    }
+
     const course = await prisma.course.create({
       data: {
         userId,
@@ -767,7 +848,8 @@ class CourseService {
         course.name,
         contextChunks,
         historyForAi,
-        enableThink
+        enableThink,
+        userId
       );
       if (typeof ragRes === 'object' && ragRes !== null) {
         answer = (ragRes as any).answer || '';

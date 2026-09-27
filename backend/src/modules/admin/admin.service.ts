@@ -1,5 +1,6 @@
 import prisma from '../../config/database';
 import { supabase, toCamelCase } from '../../config/supabase';
+import { userAnalyticsService } from './userAnalytics.service';
 
 export interface AdminUserListItem {
   id: string;
@@ -13,11 +14,33 @@ export interface AdminUserListItem {
   major?: string;
   aiProviderPreference: string;
   activeByokProvider?: string;
+  whatsappNumber?: string;
   coursesCount: number;
   tasksCount: number;
   chatMessagesCount: number;
   createdAt: string;
   lastActive?: string;
+  // Per-user requested metrics
+  systemAiUsage?: {
+    used: number;
+    limit: number;
+    remaining: number;
+    isByok: boolean;
+    provider?: string;
+  };
+  uploads?: {
+    totalBytes: number;
+    totalMB: number;
+    filesCount: number;
+  };
+  whatsapp?: {
+    isIntegrated: boolean;
+    number: string | null;
+    messagesSent: number;
+  };
+  emails?: {
+    sentCount: number;
+  };
 }
 
 export interface AdminCourseListItem {
@@ -48,6 +71,7 @@ class AdminService {
         newUsersWeekRes,
         proUsersRes,
         campusUsersRes,
+        plusUsersRes,
         byokUsersRes,
         blockedUsersRes,
       ] = await Promise.all([
@@ -55,6 +79,7 @@ class AdminService {
         supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo),
         supabase.from('users').select('*', { count: 'exact', head: true }).eq('plan', 'pro'),
         supabase.from('users').select('*', { count: 'exact', head: true }).eq('plan', 'campus'),
+        supabase.from('users').select('*', { count: 'exact', head: true }).eq('plan', 'plus'),
         supabase.from('users').select('*', { count: 'exact', head: true }).eq('ai_provider_preference', 'byok'),
         supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_blocked', true),
       ]);
@@ -62,8 +87,9 @@ class AdminService {
       const totalUsers = totalUsersRes.count || 0;
       const newUsersWeek = newUsersWeekRes.count || 0;
       const proUsers = proUsersRes.count || 0;
+      const plusUsers = plusUsersRes.count || 0;
       const campusUsers = campusUsersRes.count || 0;
-      const freeUsers = Math.max(0, totalUsers - proUsers - campusUsers);
+      const trialUsers = Math.max(0, totalUsers - proUsers - plusUsers - campusUsers);
       const byokUsers = byokUsersRes.count || 0;
       const systemAiUsers = Math.max(0, totalUsers - byokUsers);
       const blockedUsers = blockedUsersRes.count || 0;
@@ -92,13 +118,18 @@ class AdminService {
         .order('created_at', { ascending: false })
         .limit(5);
 
+      // Aggregated Telemetry across all users
+      const globalTelemetry = userAnalyticsService.getGlobalTelemetryTotals();
+
       return {
         users: {
           total: totalUsers,
           newThisWeek: newUsersWeek,
           blocked: blockedUsers,
           planBreakdown: {
-            free: freeUsers,
+            trial: trialUsers,
+            free: trialUsers,
+            plus: plusUsers,
             pro: proUsers,
             campus: campusUsers,
           },
@@ -114,6 +145,13 @@ class AdminService {
           blockedCourses: blockedCoursesRes.count || 0,
           totalChatMessages: totalMessagesRes.count || 0,
           totalMaterials: totalMaterialsRes.count || 0,
+        },
+        telemetry: {
+          totalUploadMB: globalTelemetry.totalUploadMB,
+          totalUploadedFiles: globalTelemetry.totalUploadedFiles,
+          totalSystemAiCalls: globalTelemetry.totalSystemAiCalls,
+          totalWhatsAppSent: globalTelemetry.totalWhatsAppSent,
+          totalEmailsSent: globalTelemetry.totalEmailsSent,
         },
         recentSignups: (recentUsers || []).map(toCamelCase),
       };
@@ -140,7 +178,7 @@ class AdminService {
     try {
       let query = supabase
         .from('users')
-        .select('id, full_name, email, role, plan, is_blocked, is_verified, university, major, ai_provider_preference, active_byok_provider, created_at, updated_at', { count: 'exact' });
+        .select('id, full_name, email, role, plan, is_blocked, is_verified, university, major, ai_provider_preference, active_byok_provider, whatsapp_number, created_at, updated_at', { count: 'exact' });
 
       if (params.search && params.search.trim()) {
         const s = params.search.trim().toLowerCase();
@@ -190,27 +228,42 @@ class AdminService {
         messageCountMap.set(row.user_id, (messageCountMap.get(row.user_id) || 0) + 1);
       });
 
-      const enrichedUsers: AdminUserListItem[] = (users || []).map((u: any) => {
-        const camel = toCamelCase(u) as any;
-        return {
-          id: camel.id,
-          fullName: camel.fullName || 'Student',
-          email: camel.email || '',
-          role: camel.role || 'student',
-          plan: camel.plan || 'free',
-          isBlocked: Boolean(camel.isBlocked),
-          isVerified: Boolean(camel.isVerified),
-          university: camel.university,
-          major: camel.major,
-          aiProviderPreference: camel.aiProviderPreference || 'system',
-          activeByokProvider: camel.activeByokProvider,
-          coursesCount: courseCountMap.get(camel.id) || 0,
-          tasksCount: taskCountMap.get(camel.id) || 0,
-          chatMessagesCount: messageCountMap.get(camel.id) || 0,
-          createdAt: camel.createdAt,
-          lastActive: camel.updatedAt || camel.createdAt,
-        };
-      });
+      const enrichedUsers: AdminUserListItem[] = await Promise.all(
+        (users || []).map(async (u: any) => {
+          const camel = toCamelCase(u) as any;
+          const analytics = await userAnalyticsService.getUserFullAnalytics({
+            id: camel.id,
+            email: camel.email,
+            whatsappNumber: camel.whatsappNumber,
+            aiProviderPreference: camel.aiProviderPreference,
+            activeByokProvider: camel.activeByokProvider,
+          });
+
+          return {
+            id: camel.id,
+            fullName: camel.fullName || 'Student',
+            email: camel.email || '',
+            role: camel.role || 'student',
+            plan: camel.plan || 'free',
+            isBlocked: Boolean(camel.isBlocked),
+            isVerified: Boolean(camel.isVerified),
+            university: camel.university,
+            major: camel.major,
+            aiProviderPreference: camel.aiProviderPreference || 'system',
+            activeByokProvider: camel.activeByokProvider,
+            whatsappNumber: camel.whatsappNumber,
+            coursesCount: courseCountMap.get(camel.id) || 0,
+            tasksCount: taskCountMap.get(camel.id) || 0,
+            chatMessagesCount: messageCountMap.get(camel.id) || 0,
+            createdAt: camel.createdAt,
+            lastActive: camel.updatedAt || camel.createdAt,
+            systemAiUsage: analytics.systemAiUsage,
+            uploads: analytics.uploads,
+            whatsapp: analytics.whatsapp,
+            emails: analytics.emails,
+          };
+        })
+      );
 
       return {
         users: enrichedUsers,
@@ -230,18 +283,28 @@ class AdminService {
   /**
    * Update a student's subscription plan directly from admin dashboard
    */
-  async updateUserPlan(userId: string, plan: 'free' | 'pro' | 'campus') {
+  async updateUserPlan(userId: string, rawPlan: string) {
     try {
+      const plan = rawPlan.toLowerCase().trim();
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
         throw Object.assign(new Error('User not found.'), { statusCode: 404 });
       }
 
-      // 1. Update user record
+      // 1. Update user record in Prisma / Memory / Supabase
       const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: { plan } as any,
       });
+
+      try {
+        await supabase
+          .from('users')
+          .update({ plan, updated_at: new Date().toISOString() })
+          .eq('id', userId);
+      } catch (sbErr: any) {
+        console.warn('[AdminService] Supabase user plan sync notice:', sbErr.message);
+      }
 
       // 2. Sync / insert subscription row
       try {
@@ -264,13 +327,63 @@ class AdminService {
         console.warn('[AdminService] Subscription record sync notice:', subErr.message);
       }
 
+      const planDisplayNames: Record<string, string> = {
+        trial: '7-Day Free Trial (1 Course)',
+        free: '7-Day Free Trial (1 Course)',
+        plus: 'StudySync Plus (5 Courses)',
+        pro: 'StudySync Pro (10 Courses)',
+        campus: 'Campus Enterprise (25 Courses)',
+      };
+      const displayName = planDisplayNames[plan] || plan.toUpperCase();
+
       return {
         success: true,
-        message: `Plan for ${user.email} successfully updated to ${plan.toUpperCase()}.`,
+        message: `Plan for ${user.email} successfully upgraded to ${displayName}.`,
         user: updatedUser,
       };
     } catch (err: any) {
       console.error('[AdminService] updateUserPlan error:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Upgrade user plan directly by email (convenient for WhatsApp orders)
+   */
+  async upgradeUserByEmail(email: string, plan: string) {
+    try {
+      const cleanEmail = (email || '').trim().toLowerCase();
+      if (!cleanEmail) {
+        throw Object.assign(new Error('Student email is required.'), { statusCode: 400 });
+      }
+
+      let user = await prisma.user.findFirst({
+        where: { email: cleanEmail },
+      });
+
+      if (!user) {
+        // Fallback check in Supabase directly
+        const { data: sbUser } = await supabase
+          .from('users')
+          .select('id, email, full_name, plan')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+
+        if (sbUser) {
+          user = toCamelCase(sbUser) as any;
+        }
+      }
+
+      if (!user) {
+        throw Object.assign(
+          new Error(`No student account found registered under email: "${cleanEmail}". Please check spelling.`),
+          { statusCode: 404 }
+        );
+      }
+
+      return await this.updateUserPlan(user.id, plan);
+    } catch (err: any) {
+      console.error('[AdminService] upgradeUserByEmail error:', err);
       throw err;
     }
   }

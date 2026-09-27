@@ -131,10 +131,12 @@ class AuthController {
 
       res.status(200).json({
         success: true,
-        message: 'Welcome back!',
+        message: result.isAdmin ? 'Admin session authorized.' : 'Welcome back!',
         data: {
           user: result.user,
           accessToken: result.accessToken,
+          adminToken: result.adminToken,
+          isAdmin: result.isAdmin || false,
         },
       });
     } catch (error) {
@@ -333,7 +335,7 @@ class AuthController {
         university,
         major,
         semester,
-        plan: plan || 'free',
+        plan: plan || 'trial',
         aiProviderPreference: aiProviderPreference || 'system',
         activeByokProvider,
       });

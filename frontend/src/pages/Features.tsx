@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSEO } from '../hooks/useSEO';
 import { Link } from 'react-router-dom';
 import PublicHeader from '../components/PublicHeader';
 import PublicFooter from '../components/PublicFooter';
@@ -17,6 +18,13 @@ import {
 } from 'lucide-react';
 
 export default function Features() {
+  useSEO({
+    title: 'Platform Capabilities — StudySync AI | Verified Slide Citations & Autonomous Alerts',
+    description:
+      'Explore StudySync AI features: bilingual Roman Urdu NLP, FAISS vector slide retrieval with exact page citations, autonomous WhatsApp and email deadline alerts, and AES-256-GCM encrypted BYOK architecture.',
+    canonical: 'https://studysync.ai/features',
+  });
+
   const [activeTab, setActiveTab] = useState<'nlp' | 'rag' | 'alerts' | 'security'>('nlp');
 
   const comparisonData = [

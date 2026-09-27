@@ -25,13 +25,17 @@ import {
   Square,
   Download,
   FileCode,
+  ShieldCheck,
+  AlertTriangle,
+  Zap,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { coursesApi, voiceApi } from '../services/api';
+import { coursesApi, voiceApi, apiKeyApi } from '../services/api';
 import MarkdownView, { isDiagramBlock } from '../components/MarkdownView';
 import WidgetRenderer from '../components/widgets/WidgetRenderer';
 import ThinkingBlock, { LiveThinkingIndicator, AnimatedThinkingBook } from '../components/ThinkingBlock';
 import ArtifactPanel, { type ArtifactItem, type ArtifactSubFile } from '../components/ArtifactPanel';
+import InlineApiKeyCard from '../components/InlineApiKeyCard';
 
 interface Course {
   id: string;
@@ -324,6 +328,79 @@ export default function Chatbot() {
   // Drag-and-drop state
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const dragCounterRef = useRef(0);
+
+  // AI Quota & BYOK state (Max 3 messages on free system AI)
+  const [aiQuota, setAiQuota] = useState<{
+    used: number;
+    limit: number;
+    remaining: number;
+    isByok: boolean;
+    activeProvider?: string;
+  } | null>(null);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [isSavingByokKey, setIsSavingByokKey] = useState(false);
+  const [byokError, setByokError] = useState<string | null>(null);
+  const [pendingMessageRetry, setPendingMessageRetry] = useState<string | null>(null);
+
+  const fetchAiQuota = async () => {
+    try {
+      const res = await coursesApi.getAiQuota();
+      if (res.data?.success && res.data.data) {
+        setAiQuota({
+          used: res.data.data.count || 0,
+          limit: res.data.data.limit || 3,
+          remaining: res.data.data.remaining !== undefined ? res.data.data.remaining : Math.max(0, 3 - (res.data.data.count || 0)),
+          isByok: res.data.data.isByok || false,
+          activeProvider: res.data.data.activeProvider,
+        });
+      }
+    } catch (e) {
+      console.warn('Could not fetch AI quota:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchAiQuota();
+  }, []);
+
+  const handleSaveApiKeyFromChat = async (provider: 'groq' | 'gemini', keyVal: string) => {
+    const trimmed = keyVal.trim();
+    if (!trimmed) {
+      setByokError('API key cannot be empty.');
+      return;
+    }
+    setIsSavingByokKey(true);
+    setByokError(null);
+
+    try {
+      await apiKeyApi.saveKey(provider, trimmed, true);
+      toast.success(`🎉 ${provider.toUpperCase()} API key saved & activated! Unlimited chat enabled.`);
+      
+      setAiQuota({
+        isByok: true,
+        activeProvider: provider,
+        used: 0,
+        limit: Infinity,
+        remaining: Infinity,
+      });
+      setShowApiKeyModal(false);
+
+      // If there was a pending question waiting to be answered, auto-resend it!
+      if (pendingMessageRetry && selectedCourse) {
+        const retryQuery = pendingMessageRetry;
+        setPendingMessageRetry(null);
+        setTimeout(() => {
+          handleSendMessage(undefined, retryQuery);
+        }, 300);
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Verification failed. Provider rejected the key.';
+      setByokError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSavingByokKey(false);
+    }
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1080,6 +1157,11 @@ export default function Chatbot() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      if (aiQuota && !aiQuota.isByok && aiQuota.remaining === 0) {
+        toast.error('Free system AI quota (3/3) poora ho chuka hai. Pehle apni API key lagayein.');
+        setShowApiKeyModal(true);
+        return;
+      }
       handleSendMessage(e);
     }
   };
@@ -1342,6 +1424,16 @@ export default function Chatbot() {
       const { data } = await coursesApi.askChat(courseId, newQuery, [], isThinkActive);
       const editElapsedSeconds = Math.max(1, Math.round((Date.now() - editStartTime) / 1000));
 
+      if (data.systemQuota) {
+        setAiQuota({
+          used: data.systemQuota.used || 0,
+          limit: data.systemQuota.limit || 3,
+          remaining: data.systemQuota.remaining !== undefined ? data.systemQuota.remaining : 0,
+          isByok: data.systemQuota.isByok || false,
+          activeProvider: data.systemQuota.activeProvider,
+        });
+      }
+
       if (data.data?.createdTasks && Array.isArray(data.data.createdTasks) && data.data.createdTasks.length > 0) {
         data.data.createdTasks.forEach((t: any) => {
           toast.success(`📅 Auto-Scheduled ${t.type.toUpperCase()}: "${t.title}"`, { duration: 5000 });
@@ -1373,6 +1465,38 @@ export default function Chatbot() {
         }
       });
     } catch (err: any) {
+      const errData = err.response?.data;
+      if (errData?.quotaExceeded || errData?.requiresApiKey || err.response?.status === 403) {
+        setAiQuota((prev) => ({
+          used: 3,
+          limit: 3,
+          remaining: 0,
+          isByok: false,
+          activeProvider: prev?.activeProvider,
+        }));
+        setPendingMessageRetry(newQuery);
+
+        const quotaMsg: ChatMessage = {
+          id: crypto.randomUUID(),
+          courseId,
+          role: 'assistant',
+          text: `⚠️ **Free System AI Quota Reached (3/3 Messages)**\n\nAapka free system AI quota poora ho chuka hai.\nChatbot continue rakhne ke liye baraye meherbani neeche apni **Google Gemini** ya **Groq** API key enter karein:`,
+          timestamp: new Date().toISOString(),
+          widgets: [
+            {
+              type: 'api_key_prompt',
+              data: { used: 3, limit: 3 },
+            },
+          ],
+        };
+        setHistories((prev) => ({
+          ...prev,
+          [courseId]: [...priorHistory, updatedUserMsg, quotaMsg],
+        }));
+        setShowApiKeyModal(true);
+        return;
+      }
+
       const errorMsg: ChatMessage = {
         id: crypto.randomUUID(),
         courseId,
@@ -1402,6 +1526,12 @@ export default function Chatbot() {
     // Strictly check files that are currently ready in attachedFiles
     const currentFiles = attachedFiles.filter((f) => f.status === 'ready');
     if ((!query && currentFiles.length === 0) || !selectedCourse || isSending) return;
+
+    if (aiQuota && !aiQuota.isByok && aiQuota.remaining === 0) {
+      toast.error('Free system AI quota (3/3) poora ho chuka hai. Pehle apni API key lagayein.');
+      setShowApiKeyModal(true);
+      return;
+    }
 
     const courseId = selectedCourse.id;
     const filesToSend = currentFiles.map((item) => item.file);
@@ -1459,6 +1589,16 @@ export default function Chatbot() {
       const { data } = await coursesApi.askChat(courseId, query, filesToSend, isThinkActive);
       const sendElapsedSeconds = Math.max(1, Math.round((Date.now() - sendStartTime) / 1000));
 
+      if (data.systemQuota) {
+        setAiQuota({
+          used: data.systemQuota.used || 0,
+          limit: data.systemQuota.limit || 3,
+          remaining: data.systemQuota.remaining !== undefined ? data.systemQuota.remaining : 0,
+          isByok: data.systemQuota.isByok || false,
+          activeProvider: data.systemQuota.activeProvider,
+        });
+      }
+
       if (data.data?.createdTasks && Array.isArray(data.data.createdTasks) && data.data.createdTasks.length > 0) {
         data.data.createdTasks.forEach((t: any) => {
           toast.success(`📅 Auto-Scheduled ${t.type.toUpperCase()}: "${t.title}"`, { duration: 5000 });
@@ -1495,6 +1635,38 @@ export default function Chatbot() {
         }
       });
     } catch (err: any) {
+      const errData = err.response?.data;
+      if (errData?.quotaExceeded || errData?.requiresApiKey || err.response?.status === 403) {
+        setAiQuota((prev) => ({
+          used: 3,
+          limit: 3,
+          remaining: 0,
+          isByok: false,
+          activeProvider: prev?.activeProvider,
+        }));
+        setPendingMessageRetry(query);
+
+        const quotaMsg: ChatMessage = {
+          id: crypto.randomUUID(),
+          courseId,
+          role: 'assistant',
+          text: `⚠️ **Free System AI Quota Reached (3/3 Messages)**\n\nAapka free system AI message limit poora ho chuka hai.\nChatbot continue rakhne ke liye baraye meherbani neeche apni **Google Gemini** ya **Groq** API key enter karein:`,
+          timestamp: new Date().toISOString(),
+          widgets: [
+            {
+              type: 'api_key_prompt',
+              data: { used: 3, limit: 3 },
+            },
+          ],
+        };
+        setHistories((prev) => ({
+          ...prev,
+          [courseId]: [...(prev[courseId] || []), quotaMsg],
+        }));
+        setShowApiKeyModal(true);
+        return;
+      }
+
       const errorMsg: ChatMessage = {
         id: crypto.randomUUID(),
         courseId,
@@ -1513,6 +1685,13 @@ export default function Chatbot() {
 
   const handleSendVoiceMessage = async (transcript: string) => {
     if (!transcript.trim() || !selectedCourse || isSending) return;
+
+    if (aiQuota && !aiQuota.isByok && aiQuota.remaining === 0) {
+      toast.error('Free system AI quota (3/3) poora ho chuka hai. Pehle apni API key lagayein.');
+      setShowApiKeyModal(true);
+      return;
+    }
+
     const courseId = selectedCourse.id;
     const spokenText = transcript.trim();
 
@@ -1534,6 +1713,16 @@ export default function Chatbot() {
 
     try {
       const { data } = await coursesApi.askChat(courseId, spokenText, [], isThinkActive);
+
+      if (data.systemQuota) {
+        setAiQuota({
+          used: data.systemQuota.used || 0,
+          limit: data.systemQuota.limit || 3,
+          remaining: data.systemQuota.remaining !== undefined ? data.systemQuota.remaining : 0,
+          isByok: data.systemQuota.isByok || false,
+          activeProvider: data.systemQuota.activeProvider,
+        });
+      }
 
       if (data.data?.createdTasks && Array.isArray(data.data.createdTasks) && data.data.createdTasks.length > 0) {
         data.data.createdTasks.forEach((t: any) => {
@@ -1559,6 +1748,38 @@ export default function Chatbot() {
 
       streamAssistantMessage(courseId, assistantMsgId, data.data.answer || '', baseAssistantMsg);
     } catch (err: any) {
+      const errData = err.response?.data;
+      if (errData?.quotaExceeded || errData?.requiresApiKey || err.response?.status === 403) {
+        setAiQuota((prev) => ({
+          used: 3,
+          limit: 3,
+          remaining: 0,
+          isByok: false,
+          activeProvider: prev?.activeProvider,
+        }));
+        setPendingMessageRetry(spokenText);
+
+        const quotaMsg: ChatMessage = {
+          id: crypto.randomUUID(),
+          courseId,
+          role: 'assistant',
+          text: `⚠️ **Free System AI Quota Reached (3/3 Messages)**\n\nAapka free system AI message limit poora ho chuka hai.\nChatbot continue rakhne ke liye baraye meherbani neeche apni **Google Gemini** ya **Groq** API key enter karein:`,
+          timestamp: new Date().toISOString(),
+          widgets: [
+            {
+              type: 'api_key_prompt',
+              data: { used: 3, limit: 3 },
+            },
+          ],
+        };
+        setHistories((prev) => ({
+          ...prev,
+          [courseId]: [...(prev[courseId] || []), quotaMsg],
+        }));
+        setShowApiKeyModal(true);
+        return;
+      }
+
       const errorMsg: ChatMessage = {
         id: crypto.randomUUID(),
         courseId,
@@ -1637,7 +1858,7 @@ export default function Chatbot() {
       <div style={{ textAlign: 'center', padding: '100px 20px', color: 'var(--text-secondary)' }}>
         <h3>No courses found</h3>
         <p style={{ marginTop: 8, fontSize: '0.9rem' }}>Please create a course first in the Courses section.</p>
-        <a href="/courses" className="btn btn-primary" style={{ marginTop: 16 }}>
+        <a href="/my-courses" className="btn btn-primary" style={{ marginTop: 16 }}>
           Go to Courses
         </a>
       </div>
@@ -1723,8 +1944,70 @@ export default function Chatbot() {
           )}
         </div>
 
-        {/* Topbar Right Actions: Upload Notes & New Chat */}
+        {/* Topbar Right Actions: Quota Status, Upload Notes & New Chat */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* AI Quota Pill Badge */}
+          {aiQuota?.isByok ? (
+            <button
+              type="button"
+              onClick={() => setShowApiKeyModal(true)}
+              title="Your personal AI API key is active. Unlimited chat enabled. Click to change key."
+              style={{
+                background: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: '20px',
+                padding: '6px 12px',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                color: '#059669',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(16, 185, 129, 0.08)')}
+            >
+              <ShieldCheck size={14} color="#059669" />
+              <span>{(aiQuota.activeProvider || 'BYOK').toUpperCase()} Active • Unlimited</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowApiKeyModal(true)}
+              title={aiQuota?.remaining === 0 ? 'Quota exceeded. Click to connect your free API key.' : 'Click to connect your own free Gemini or Groq API key.'}
+              style={{
+                background: (aiQuota && aiQuota.remaining === 0) ? '#FEF2F2' : '#EFF6FF',
+                border: `1px solid ${(aiQuota && aiQuota.remaining === 0) ? '#FECACA' : '#BFDBFE'}`,
+                borderRadius: '20px',
+                padding: '6px 12px',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                color: (aiQuota && aiQuota.remaining === 0) ? '#DC2626' : '#2563EB',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+            >
+              {(aiQuota && aiQuota.remaining === 0) ? (
+                <>
+                  <AlertTriangle size={14} color="#DC2626" />
+                  <span>Quota (3/3) Reached • Apni API Lagayein</span>
+                </>
+              ) : (
+                <>
+                  <Zap size={14} color="#2563EB" />
+                  <span>Free AI ({aiQuota?.remaining !== undefined ? `${aiQuota.remaining}/3 left` : '3 free'})</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -2195,7 +2478,16 @@ export default function Chatbot() {
 
                       {/* Interactive Visual Widgets */}
                       {msg.widgets && msg.widgets.length > 0 && !msg.isStreaming && (
-                        <WidgetRenderer widgets={msg.widgets} />
+                        <>
+                          {msg.widgets.some((w: any) => w.type === 'api_key_prompt') && (
+                            <InlineApiKeyCard
+                              onSave={handleSaveApiKeyFromChat}
+                              isSaving={isSavingByokKey}
+                              error={byokError}
+                            />
+                          )}
+                          <WidgetRenderer widgets={msg.widgets.filter((w: any) => w.type !== 'api_key_prompt')} />
+                        </>
                       )}
 
                       {/* Assistant Action Bar */}
@@ -2677,7 +2969,9 @@ export default function Chatbot() {
                         ? 'Drop files here...'
                         : readyFiles.length > 0
                           ? `Ask about ${readyFiles.length} file(s)...`
-                          : 'Ask anything'
+                          : (aiQuota && !aiQuota.isByok && aiQuota.remaining === 0)
+                            ? 'Free system quota (3/3) poora ho chuka hai. Pehle apni API key lagayein...'
+                            : 'Ask anything'
                     }
                     className="chatgpt-capsule-input"
                   />
@@ -2767,6 +3061,34 @@ export default function Chatbot() {
             artifact={activeArtifact}
             onClose={() => setActiveArtifact(null)}
           />
+        )}
+
+        {/* Dedicated API Key Modal */}
+        {showApiKeyModal && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px',
+            }}
+            onClick={() => setShowApiKeyModal(false)}
+          >
+            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: '520px' }}>
+              <InlineApiKeyCard
+                onSave={handleSaveApiKeyFromChat}
+                isSaving={isSavingByokKey}
+                error={byokError}
+                onClose={() => setShowApiKeyModal(false)}
+                isModal={true}
+              />
+            </div>
+          </div>
         )}
       </div>
     </div>

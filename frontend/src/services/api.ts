@@ -220,6 +220,7 @@ export const coursesApi = {
     }
     return api.post(`/courses/${courseId}/chat`, { question, think: !!think });
   },
+  getAiQuota: () => api.get('/courses/ai-quota'),
   getChatHistory: (courseId: string) =>
     api.get(`/courses/${courseId}/chat/history`),
   clearChatHistory: (courseId: string) =>
@@ -291,8 +292,10 @@ export const adminApi = {
   getOverview: () => adminClient.get('/admin/overview'),
   getUsers: (params?: { search?: string; plan?: string; status?: string; page?: number; limit?: number }) =>
     adminClient.get('/admin/users', { params }),
-  updateUserPlan: (userId: string, plan: 'free' | 'pro' | 'campus') =>
+  updateUserPlan: (userId: string, plan: string) =>
     adminClient.patch(`/admin/users/${userId}/plan`, { plan }),
+  upgradeUserByEmail: (email: string, plan: string) =>
+    adminClient.post('/admin/users/upgrade-by-email', { email, plan }),
   updateUserStatus: (userId: string, isBlocked: boolean) =>
     adminClient.patch(`/admin/users/${userId}/status`, { isBlocked }),
   getCourses: (params?: { search?: string; status?: string; page?: number; limit?: number }) =>

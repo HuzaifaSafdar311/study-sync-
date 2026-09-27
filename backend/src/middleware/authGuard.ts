@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
+import prisma from '../config/database';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -11,7 +12,7 @@ export interface AuthRequest extends Request {
  * Middleware: Verifies JWT access token from httpOnly cookie or Authorization header.
  * Attaches userId and userRole to the request object.
  */
-export const authGuard = (req: AuthRequest, res: Response, next: NextFunction): void => {
+export const authGuard = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
     let token = req.cookies?.accessToken;
@@ -39,6 +40,25 @@ export const authGuard = (req: AuthRequest, res: Response, next: NextFunction): 
       };
       req.userId = decoded.userId;
       req.userRole = decoded.role;
+
+      if (decoded.userId && decoded.userId !== 'personal-user') {
+        try {
+          const user = await prisma.user.findUnique({
+            where: { id: decoded.userId },
+            select: { isBlocked: true },
+          });
+          if (user?.isBlocked) {
+            res.status(403).json({
+              success: false,
+              message: 'Your account has been suspended by an administrator.',
+            });
+            return;
+          }
+        } catch {
+          // If database check encounters an issue, proceed with verified token
+        }
+      }
+
       return next();
     } catch (jwtErr: any) {
       res.status(401).json({

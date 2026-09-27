@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useSEO } from '../hooks/useSEO';
 import { Link } from 'react-router-dom';
 import PublicHeader from '../components/PublicHeader';
 import PublicFooter from '../components/PublicFooter';
@@ -29,7 +30,7 @@ const BLOG_POSTS: BlogPost[] = [
     category: 'AI & Learning',
     readTime: '5 min read',
     date: 'Sep 18, 2026',
-    author: 'Hamza Tariq (AI Research Lead)',
+    author: 'Muhammad Arham',
     snippet: 'When students type "kal quiz hai slide 4 se 9 tak", traditional chatbots fail to understand context or calendar math. Discover how dual-language ReAct tool loops parse student intent in under 500ms.',
     featured: true,
   },
@@ -39,7 +40,7 @@ const BLOG_POSTS: BlogPost[] = [
     category: 'Exam Prep',
     readTime: '4 min read',
     date: 'Sep 15, 2026',
-    author: 'Ayesha Malik (Cognitive Psychology)',
+    author: 'Muhammad Arham',
     snippet: 'Cognitive science shows that spaced reminders delivered to a primary messaging channel drastically reduce pre-exam cortisol while boosting active recall by up to 68%.',
   },
   {
@@ -48,7 +49,7 @@ const BLOG_POSTS: BlogPost[] = [
     category: 'AI & Learning',
     readTime: '6 min read',
     date: 'Sep 10, 2026',
-    author: 'Saad Ahmed (Security Eng)',
+    author: 'Muhammad Arham',
     snippet: 'Learn how StudySync AI uses AES-256-GCM authentication tags and Supabase Row-Level Security so that no one—not even server administrators—can access your raw LLM keys.',
   },
   {
@@ -57,7 +58,7 @@ const BLOG_POSTS: BlogPost[] = [
     category: 'Campus Stories',
     readTime: '5 min read',
     date: 'Sep 05, 2026',
-    author: 'Bilal Khan (FAST-NUCES Alumni)',
+    author: 'Muhammad Arham',
     snippet: 'Managing 6 heavy courses including Operating Systems and Algorithms was overwhelming. Here is how indexing 42 slide decks into localized FAISS vector stores cut revision time in half.',
   },
   {
@@ -66,7 +67,7 @@ const BLOG_POSTS: BlogPost[] = [
     category: 'AI & Learning',
     readTime: '7 min read',
     date: 'Aug 28, 2026',
-    author: 'StudySync AI Team',
+    author: 'Muhammad Arham',
     snippet: 'When you ask ChatGPT for a specific lecture derivation, it predicts general statistical tokens. StudySync AI grounds its answers strictly in the vector embeddings of your professor’s exact slides.',
   },
   {
@@ -75,7 +76,7 @@ const BLOG_POSTS: BlogPost[] = [
     category: 'Time Management',
     readTime: '4 min read',
     date: 'Aug 20, 2026',
-    author: 'Dr. Sarah Jenkins',
+    author: 'Muhammad Arham',
     snippet: 'A practical framework for taking a daunting 40-page software architecture design specification and turning it into effortless 45-minute daily focus sessions.',
   },
 ];
@@ -89,6 +90,13 @@ const CATEGORIES = [
 ];
 
 export default function Blog() {
+  useSEO({
+    title: 'Academic Insights & Guides — StudySync AI Blog',
+    description:
+      'Explore curated articles on AI-powered study strategies, FAISS-based slide retrieval, bilingual NLP for university students, WhatsApp exam reminders, and high-yield academic preparation tactics.',
+    canonical: 'https://studysync.ai/blog',
+  });
+
   const [selectedCategory, setSelectedCategory] = useState('All Articles');
   const [searchQuery, setSearchQuery] = useState('');
 

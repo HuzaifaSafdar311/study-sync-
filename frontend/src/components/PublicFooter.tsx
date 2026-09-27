@@ -57,7 +57,6 @@ export default function PublicFooter() {
             <li><Link to="/" className="ss-footer-link">Home</Link></li>
             <li><Link to="/about" className="ss-footer-link">About Us</Link></li>
             <li><Link to="/features" className="ss-footer-link">Superpowers</Link></li>
-            <li><Link to="/courses" className="ss-footer-link">Courses</Link></li>
             <li><Link to="/pricing" className="ss-footer-link">Student Pricing</Link></li>
           </ul>
         </div>
@@ -114,11 +113,12 @@ export default function PublicFooter() {
             <span className="ss-pulse-dot" /> All Systems Operational
           </span>
           <span className="ss-dot-sep">•</span>
-          <Link to="/about" className="ss-footer-sublink">Privacy & Tenant Isolation</Link>
+          <Link to="/about" className="ss-footer-sublink">Privacy &amp; Tenant Isolation</Link>
           <span className="ss-dot-sep">•</span>
           <Link to="/contact" className="ss-footer-sublink">Campus Support</Link>
         </div>
       </div>
     </footer>
+
   );
 }

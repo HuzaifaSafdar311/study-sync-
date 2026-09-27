@@ -9,13 +9,11 @@ import {
   ArrowRight,
   ArrowLeft,
   ShieldCheck,
-  Zap,
   BookOpen,
   Lock,
   Loader2,
   Check,
   Layers,
-  Crown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authApi, apiKeyApi, coursesApi } from '../services/api';
@@ -30,9 +28,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Step 1: Academic Identity
-  const [university, setUniversity] = useState('University of Management and Technology');
-  const [major, setMajor] = useState('Computer Science');
-  const [semester, setSemester] = useState('6th Semester');
+  const [university, setUniversity] = useState('');
+  const [major, setMajor] = useState('');
+  const [semester, setSemester] = useState('');
 
   // Step 2: AI Engine & BYOK
   const [aiEngine, setAiEngine] = useState<'system' | 'byok'>('system');
@@ -42,17 +40,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [keyVerified, setKeyVerified] = useState(false);
   const [maskedKey, setMaskedKey] = useState('');
 
-  // Step 3: Plan
-  const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro'>(() => {
-    try {
-      const saved = localStorage.getItem('studysync_selected_plan');
-      if (saved === 'pro' || saved === 'free') return saved;
-    } catch {}
-    return 'free';
-  });
+  // Plan: Automatically activate 7-day Free Trial for all new registering students
+  const selectedPlan: 'trial' = 'trial';
 
-  // Step 4: First Course
-  const [courseName, setCourseName] = useState('Machine Learning');
+  // Step 3: First Course
+  const [courseName, setCourseName] = useState('');
   const [courseColor, setCourseColor] = useState('#6366F1');
 
   // Live test key
@@ -164,9 +156,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           letterSpacing: '-0.02em',
         }}>
           {step === 1 && 'Academic Profile'}
-          {step === 2 && 'AI Engine & API Keys'}
-          {step === 3 && 'Choose Your Plan'}
-          {step === 4 && 'Launch Your First Course'}
+          {step === 2 && 'AI Engine Configuration'}
+          {step === 3 && 'Launch Your First Course'}
         </h1>
         <p style={{
           fontSize: '0.875rem',
@@ -175,9 +166,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           marginBottom: 0,
         }}>
           {step === 1 && 'Tailor intelligent deadline detection to your syllabus and term.'}
-          {step === 2 && 'Choose between platform-managed AI or military-grade encrypted BYOK.'}
-          {step === 3 && 'Select the tier that fits your academic workload.'}
-          {step === 4 && 'Setup your active subject to start synthesizing notes and scheduling.'}
+          {step === 2 && 'Choose whether you want to proceed without an API key (System AI) or connect your own API key.'}
+          {step === 3 && 'Setup your active course to start synthesizing notes and scheduling (7-Day Trial Active).'}
         </p>
       </div>
 
@@ -192,7 +182,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         padding: '32px',
         position: 'relative',
       }}>
-        {/* Step Progress Bar */}
+        {/* Step Progress Bar (3 Steps: Profile -> AI Engine -> First Course) */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -214,7 +204,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             position: 'absolute',
             top: '50%',
             left: '12px',
-            width: `${((step - 1) / 3) * 100}%`,
+            width: `${((step - 1) / 2) * 100}%`,
             height: '2px',
             backgroundColor: '#6366F1',
             transform: 'translateY(-50%)',
@@ -222,7 +212,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             zIndex: 2,
           }} />
 
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3].map((s) => (
             <div
               key={s}
               style={{
@@ -366,9 +356,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     </div>
                   )}
                 </div>
-                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1C1917' }}>Auto System AI</div>
-                <div style={{ fontSize: '0.75rem', color: '#78716C', marginTop: '2px' }}>
-                  Pre-configured platform rotation. Zero setup required.
+                <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1C1917' }}>Without API Key (System AI)</div>
+                <div style={{ fontSize: '0.75rem', color: '#78716C', marginTop: '3px', lineHeight: 1.4 }}>
+                  Operate seamlessly with StudySync System AI. No external API key required.
                 </div>
               </div>
 
@@ -395,13 +385,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   </div>
                   {aiEngine === 'byok' && (
                     <div className="ob-check-bloom">
-                      <CheckCircle2 size={18} color="#059669" />
+                       <CheckCircle2 size={18} color="#059669" />
                     </div>
                   )}
                 </div>
-                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1C1917' }}>Bring Your Own Key</div>
-                <div style={{ fontSize: '0.75rem', color: '#78716C', marginTop: '2px' }}>
-                  Gemini, OpenAI, or Groq with private rate limits.
+                <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1C1917' }}>With API Key (Bring Your Own Key)</div>
+                <div style={{ fontSize: '0.75rem', color: '#78716C', marginTop: '3px', lineHeight: 1.4 }}>
+                  Connect your personal Gemini, Groq, or OpenAI API key with private rate limits.
                 </div>
               </div>
             </div>
@@ -527,94 +517,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           </div>
         )}
 
-        {/* ─── STEP 3: Plan Selection ───────────────────────────────────── */}
+        {/* ─── STEP 3: First Course ─────────────────────────────────────── */}
         {step === 3 && (
-          <div className="ob-step-container">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
-              {/* Free Plan */}
-              <div
-                onClick={() => setSelectedPlan('free')}
-                className={`ob-card-selectable ${selectedPlan === 'free' ? 'active' : ''}`}
-                style={{
-                  padding: '20px',
-                  borderRadius: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#78716C', textTransform: 'uppercase' }}>Starter</span>
-                    {selectedPlan === 'free' && (
-                      <div className="ob-check-bloom">
-                        <CheckCircle2 size={18} color="#6366F1" />
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#1C1917', marginBottom: '8px' }}>
-                    $0 <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#78716C' }}>/ month</span>
-                  </div>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: '12px 0 0 0', fontSize: '0.75rem', color: '#57534E', lineHeight: 1.8 }}>
-                    <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Check size={13} color="#10B981" /> Up to 5 Active Courses
-                    </li>
-                    <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Check size={13} color="#10B981" /> 24h & 12h Email Reminders
-                    </li>
-                    <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Check size={13} color="#10B981" /> Standard AI Chat
-                    </li>
-                  </ul>
-                </div>
-              </div>
-
-              {/* Pro Plan */}
-              <div
-                onClick={() => setSelectedPlan('pro')}
-                className={`ob-card-selectable ob-pro-shimmer-card ${selectedPlan === 'pro' ? 'active' : ''}`}
-                style={{
-                  padding: '20px',
-                  borderRadius: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Crown size={14} color="#6366F1" />
-                      <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#6366F1', textTransform: 'uppercase' }}>Pro Student</span>
-                    </div>
-                    {selectedPlan === 'pro' && (
-                      <div className="ob-check-bloom">
-                        <CheckCircle2 size={18} color="#6366F1" />
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#1C1917', marginBottom: '8px' }}>
-                    $9 <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#78716C' }}>/ month</span>
-                  </div>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: '12px 0 0 0', fontSize: '0.75rem', color: '#4338CA', lineHeight: 1.8 }}>
-                    <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Zap size={13} color="#6366F1" /> Unlimited Courses & RAG
-                    </li>
-                    <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Zap size={13} color="#6366F1" /> WhatsApp Agent Sync
-                    </li>
-                    <li style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Zap size={13} color="#6366F1" /> Gemini 3.6 Flash / 120B
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── STEP 4: First Course ─────────────────────────────────────── */}
-        {step === 4 && (
           <div className="ob-step-container">
             <div style={{ marginBottom: '18px' }}>
               <label htmlFor="obCourseName" style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#44403C', marginBottom: '6px', cursor: 'pointer' }}>
@@ -701,7 +605,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             </button>
           ) : <div />}
 
-          {step < 4 ? (
+          {step < 3 ? (
             <button
               type="button"
               onClick={() => setStep((s) => s + 1)}

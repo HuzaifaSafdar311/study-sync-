@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/authGuard';
 import prisma from '../../config/database';
 import { encryptApiKey, maskApiKey } from '../../utils/encryption';
+import { systemQuotaService } from '../ai/systemQuota.service';
 
 class ApiKeyController {
   /**
@@ -241,6 +242,8 @@ class ApiKeyController {
         createdAt: k.createdAt,
       }));
 
+      const quota = await systemQuotaService.checkSystemQuota(userId);
+
       res.status(200).json({
         success: true,
         data: {
@@ -248,6 +251,12 @@ class ApiKeyController {
           activeByokProvider: user?.activeByokProvider || null,
           plan: user?.plan || 'free',
           keys: safeKeys,
+          systemQuota: {
+            used: quota.count,
+            limit: quota.limit,
+            remaining: quota.remaining,
+            isByok: quota.isByok,
+          },
         },
       });
     } catch (error) {

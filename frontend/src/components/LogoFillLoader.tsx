@@ -60,7 +60,7 @@ export const LogoFillLoader: React.FC<LogoFillLoaderProps> = ({
         className={`loader-seq-stage ${isDone ? 'is-complete' : ''}`}
         style={{
           width: '220px',
-          height: '240px',
+          height: '180px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -107,7 +107,7 @@ export const LogoFillLoader: React.FC<LogoFillLoaderProps> = ({
             }}
           />
 
-          {/* 2. Top Layer: 100% Authentic Vibrant 2K Colors Flowing Upwards */}
+          {/* 2. Top Layer: Authentic Vibrant Colors Flowing Upwards */}
           <img
             src="/studysync-logo-transparent.png"
             alt="StudySync AI"
@@ -140,57 +140,6 @@ export const LogoFillLoader: React.FC<LogoFillLoaderProps> = ({
               }}
             />
           )}
-        </div>
-
-        {/* Modern Minimalist Progress Indicator */}
-        <div
-          style={{
-            marginTop: '22px',
-            width: '140px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          {/* Micro Progress Bar Track */}
-          <div
-            style={{
-              width: '100%',
-              height: '3px',
-              borderRadius: '9999px',
-              backgroundColor: '#E2E8F0',
-              overflow: 'hidden',
-              position: 'relative',
-            }}
-          >
-            <div
-              style={{
-                width: `${progress}%`,
-                height: '100%',
-                background: 'linear-gradient(90deg, #4F46E5, #818CF8)',
-                borderRadius: '9999px',
-                transition: 'width 0.05s linear',
-              }}
-            />
-          </div>
-
-          {/* Academic OS Loading Label */}
-          <div
-            style={{
-              fontSize: '0.6875rem',
-              fontWeight: 600,
-              letterSpacing: '0.04em',
-              color: '#64748B',
-              textTransform: 'uppercase',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <span>Workspace</span>
-            <span style={{ color: '#4F46E5', fontWeight: 700 }}>{progress}%</span>
-          </div>
         </div>
       </div>
     </div>

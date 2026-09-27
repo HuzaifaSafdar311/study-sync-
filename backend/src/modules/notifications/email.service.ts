@@ -1,5 +1,6 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import { config } from '../../config';
+import { userAnalyticsService } from '../admin/userAnalytics.service';
 
 interface SendMailOptions {
   to: string;
@@ -57,6 +58,7 @@ class EmailService {
    * Send an email with automatic HTML fallback and console logging.
    */
   async sendEmail(options: SendMailOptions): Promise<{ success: boolean; previewUrl?: string }> {
+    userAnalyticsService.recordEmailSent(options.to);
     const transporter = await this.getTransporter();
     const from = process.env.SMTP_FROM || config.sendgrid.fromEmail || 'StudySync AI <reminders@studysync.ai>';
 

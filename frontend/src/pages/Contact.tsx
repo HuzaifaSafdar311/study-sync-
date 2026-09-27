@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSEO } from '../hooks/useSEO';
 import toast from 'react-hot-toast';
 import PublicHeader from '../components/PublicHeader';
 import PublicFooter from '../components/PublicFooter';
@@ -14,6 +15,13 @@ import {
 } from 'lucide-react';
 
 export default function Contact() {
+  useSEO({
+    title: 'Contact StudySync AI — Academic Support & Partnership Inquiries',
+    description:
+      'Reach out to the StudySync AI support team for technical assistance, university partnerships, campus ambassador programs, or general academic platform inquiries.',
+    canonical: 'https://studysync.ai/contact',
+  });
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -45,6 +53,7 @@ export default function Contact() {
       });
     }, 1000);
   };
+
 
   return (
     <div className="ss-landing-page">
@@ -182,19 +191,19 @@ export default function Contact() {
                         id="contactName"
                         type="text"
                         required
-                        placeholder="e.g. Ali Ahmed"
+                        placeholder="Enter your name"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         className="ss-form-input"
                       />
                     </div>
                     <div className="ss-form-field">
-                      <label className="ss-form-label" htmlFor="contactEmail">University Email *</label>
+                      <label className="ss-form-label" htmlFor="contactEmail">University or Personal Email *</label>
                       <input
                         id="contactEmail"
                         type="email"
                         required
-                        placeholder="e.g. ali@university.edu.pk"
+                        placeholder="Enter your email"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         className="ss-form-input"
@@ -223,7 +232,7 @@ export default function Contact() {
                       <input
                         id="contactSubject"
                         type="text"
-                        placeholder="e.g. Question about CS-402 indexing"
+                        placeholder="Enter subject"
                         value={formData.subject}
                         onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                         className="ss-form-input"
@@ -237,7 +246,7 @@ export default function Contact() {
                       id="contactMessage"
                       required
                       rows={5}
-                      placeholder="Describe your question, request, or feedback..."
+                      placeholder="Enter your message..."
                       value={formData.message}
                       onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                       className="ss-form-textarea"

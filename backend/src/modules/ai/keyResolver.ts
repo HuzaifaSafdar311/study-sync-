@@ -60,14 +60,24 @@ export async function resolveAIClientForUser(
     });
 
     if (user?.aiProviderPreference === 'byok') {
-      const targetProvider = preferredProvider || user.activeByokProvider || 'groq';
-      const keyRecord = await prisma.userApiKey.findFirst({
+      const targetProvider = user.activeByokProvider || preferredProvider || 'gemini';
+      let keyRecord = await prisma.userApiKey.findFirst({
         where: {
           userId,
           provider: targetProvider as any,
           isValid: true,
         },
       });
+
+      // If no key found for active provider, check any other valid key configured by user
+      if (!keyRecord) {
+        keyRecord = await prisma.userApiKey.findFirst({
+          where: {
+            userId,
+            isValid: true,
+          },
+        });
+      }
 
       if (keyRecord && keyRecord.encryptedData && keyRecord.iv && keyRecord.authTag) {
         try {
@@ -77,7 +87,9 @@ export async function resolveAIClientForUser(
             keyRecord.authTag
           );
 
-          if (targetProvider === 'gemini') {
+          const actualProvider = (keyRecord.provider as string) || targetProvider;
+
+          if (actualProvider === 'gemini') {
             return {
               isByok: true,
               provider: 'gemini',
@@ -86,7 +98,7 @@ export async function resolveAIClientForUser(
             };
           }
 
-          if (targetProvider === 'groq') {
+          if (actualProvider === 'groq') {
             return {
               isByok: true,
               provider: 'groq',
@@ -95,7 +107,7 @@ export async function resolveAIClientForUser(
             };
           }
 
-          if (targetProvider === 'openai') {
+          if (actualProvider === 'openai') {
             return {
               isByok: true,
               provider: 'openai',

@@ -112,20 +112,50 @@ router.get('/users', async (req: Request, res: Response) => {
 
 /**
  * PATCH /api/admin/users/:id/plan
- * Update a student's subscription plan (free, pro, campus)
+ * Update a student's subscription plan (trial, free, plus, pro, campus)
  */
 router.patch('/users/:id/plan', async (req: Request, res: Response) => {
   try {
     const { plan } = req.body;
-    if (!plan || !['free', 'pro', 'campus'].includes(plan)) {
+    const allowed = ['free', 'trial', 'plus', 'pro', 'campus'];
+    if (!plan || !allowed.includes(plan.toLowerCase())) {
       res.status(400).json({
         success: false,
-        message: 'Invalid plan. Allowed plans are: free, pro, campus.',
+        message: 'Invalid plan. Allowed plans are: trial, plus, pro, campus.',
       });
       return;
     }
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const result = await adminService.updateUserPlan(id, plan);
+    res.json(result);
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/admin/users/upgrade-by-email
+ * Direct 1-click plan upgrade using student's email (for WhatsApp orders)
+ */
+router.post('/users/upgrade-by-email', async (req: Request, res: Response) => {
+  try {
+    const { email, plan } = req.body;
+    if (!email || typeof email !== 'string') {
+      res.status(400).json({
+        success: false,
+        message: 'Student email is required.',
+      });
+      return;
+    }
+    const allowed = ['free', 'trial', 'plus', 'pro', 'campus'];
+    if (!plan || !allowed.includes(plan.toLowerCase())) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid plan. Allowed plans are: trial, plus, pro, campus.',
+      });
+      return;
+    }
+    const result = await adminService.upgradeUserByEmail(email, plan);
     res.json(result);
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ success: false, message: err.message });

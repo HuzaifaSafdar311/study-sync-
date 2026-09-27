@@ -5,6 +5,8 @@ import prisma, { loadUserSettings } from '../../config/database';
 import { config } from '../../config';
 import { emailService } from '../notifications/email.service';
 import { RegisterInput, LoginInput } from './auth.schema';
+import { getPlanConfig, calculateTrialStatus, buildWhatsAppPurchaseUrl, normalizePlanId } from '../../config/plans';
+import { adminAuthService } from '../admin/admin.auth.service';
 
 function generate6DigitOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -60,7 +62,7 @@ class AuthService {
         fullName: input.fullName,
         email: input.email,
         passwordHash,
-        plan: input.plan || 'free',
+        plan: input.plan || 'trial',
         isVerified: false,
         otpCode: hashedOtp,
         otpExpiresAt,
@@ -185,8 +187,35 @@ class AuthService {
    * Login with email and password. Returns JWT pair or triggers verification OTP if unverified.
    */
   async login(input: LoginInput) {
+    const cleanEmail = (input.email || '').trim().toLowerCase();
+
+    // Check if logging in as Administrator (admin@studysync.com)
+    if (cleanEmail === 'admin@studysync.com') {
+      const adminRes = await adminAuthService.login({
+        identifier: cleanEmail,
+        password: input.password,
+      });
+
+      const tokens = this.generateTokens(adminRes.admin.id, 'admin');
+      return {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        adminToken: adminRes.adminToken,
+        isAdmin: true,
+        user: {
+          id: adminRes.admin.id,
+          fullName: 'StudySync Administrator',
+          email: adminRes.admin.email,
+          role: 'admin',
+          isVerified: true,
+          isOnboarded: true,
+          plan: 'campus',
+        },
+      };
+    }
+
     const user = await prisma.user.findUnique({
-      where: { email: input.email },
+      where: { email: cleanEmail },
       select: {
         id: true,
         fullName: true,
@@ -242,6 +271,11 @@ class AuthService {
         email: user.email,
         message: 'Your email is not verified yet. A verification code has been sent to your email.',
       };
+    }
+
+    // Enforce student role for student email accounts like arham.solution.me
+    if (user.email && user.email.toLowerCase().includes('arham.solution.me')) {
+      user.role = 'student';
     }
 
     // Generate token pair
@@ -555,6 +589,7 @@ class AuthService {
           email: normalizedEmail,
           passwordHash,
           avatarUrl: avatarUrl || null,
+          plan: 'trial',
           isVerified: true,
           isOnboarded: false,
           role: 'student',
@@ -604,32 +639,73 @@ class AuthService {
       user = null;
     }
 
-    if (!user) {
-      const settings = loadUserSettings();
-      return {
-        id: userId || 'personal-user',
-        fullName: settings.fullName || 'Personal Student',
-        email: settings.email || 'devnexes.support@gmail.com',
-        role: 'student',
-        whatsappNumber: settings.whatsappNumber || null,
-        reminderLeadTimeMins: settings.reminderLeadTimeMins || 1440,
-        googleOauthId: null,
-        hasGoogleConnected: false,
-        avatarUrl: null,
-        university: 'University of Management and Technology',
-        major: 'Software Engineering',
-        semester: '6th Semester',
-        isOnboarded: true,
-        plan: 'pro',
-        aiProviderPreference: 'system',
-        activeByokProvider: null,
-        createdAt: new Date(),
-      };
+    const targetUser = user || {
+      id: userId || 'personal-user',
+      fullName: loadUserSettings().fullName || 'Muhammad Arham',
+      email: loadUserSettings().email || 'arham.solution.me@gmail.com',
+      role: 'student',
+      whatsappNumber: loadUserSettings().whatsappNumber || null,
+      reminderLeadTimeMins: loadUserSettings().reminderLeadTimeMins || 1440,
+      googleOauthId: null,
+      hasGoogleConnected: false,
+      avatarUrl: null,
+      university: 'University of Management and Technology',
+      major: 'Software Engineering',
+      semester: '6th Semester',
+      isOnboarded: true,
+      plan: 'free',
+      aiProviderPreference: 'system',
+      activeByokProvider: null,
+      createdAt: new Date(),
+    };
+
+    // Strictly enforce student role for arham.solution.me
+    if (targetUser.email && targetUser.email.toLowerCase().includes('arham.solution.me')) {
+      targetUser.role = 'student';
     }
 
+    let userCoursesCount = 0;
+    try {
+      const userCourses = await prisma.course.findMany({
+        where: { userId: targetUser.id },
+      });
+      userCoursesCount = userCourses.length;
+    } catch {
+      userCoursesCount = 0;
+    }
+
+    const normPlan = normalizePlanId(targetUser.plan);
+    const planCfg = getPlanConfig(normPlan);
+    const trialStatus = calculateTrialStatus({
+      createdAt: targetUser.createdAt,
+      plan: normPlan,
+    });
+
+    const nextUpgradePlan = (normPlan === 'trial' || normPlan === 'free') ? 'plus' : (normPlan === 'plus' ? 'pro' : 'campus');
+    const planInfo = {
+      plan: normPlan,
+      planName: planCfg.name,
+      headline: planCfg.headline,
+      description: planCfg.description,
+      maxCourses: planCfg.maxCourses,
+      currentCourses: userCoursesCount,
+      maxUploadMB: planCfg.maxUploadMB,
+      trialDaysRemaining: trialStatus.trialDaysRemaining,
+      isTrialExpired: trialStatus.isTrialExpired,
+      trialEndsAt: trialStatus.trialEndsAt,
+      canCreateCourse: userCoursesCount < planCfg.maxCourses && !trialStatus.isTrialExpired,
+      canUpload: !trialStatus.isTrialExpired,
+      whatsappFeatures: planCfg.whatsappFeatures,
+      byokFeatures: planCfg.byokFeatures,
+      pricing: planCfg.pricing,
+      whatsappUpgradeUrl: buildWhatsAppPurchaseUrl(nextUpgradePlan, 'monthly', targetUser.email),
+    };
+
     return {
-      ...user,
-      hasGoogleConnected: !!user.googleOauthId,
+      ...targetUser,
+      plan: normPlan,
+      hasGoogleConnected: !!targetUser.googleOauthId,
+      planInfo,
     };
   }
 
@@ -675,6 +751,7 @@ class AuthService {
       where: { id: userId },
       data: {
         ...data,
+        plan: data.plan || 'trial',
         isOnboarded: true,
       } as any,
     });

@@ -4,7 +4,6 @@ import {
   Send,
   Eye,
   CheckCircle2,
-  Sparkles,
   LogOut,
   Inbox,
   MessageSquare,
@@ -24,6 +23,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { notificationsApi, authApi, whatsappApi, apiKeyApi } from '../services/api';
+import { buildWhatsAppPurchaseUrl, buildWhatsAppExtraCourseUrl } from '../config/plans';
 
 interface SettingsProps {
   user: {
@@ -376,22 +376,68 @@ export default function Settings({ user, onUpdateUser, onLogout }: SettingsProps
               <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
                 {fullName || 'Student'}
               </h3>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  fontSize: '0.74rem',
-                  fontWeight: 600,
-                  color: '#6366F1',
-                  background: '#EEF2FF',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  marginTop: 4,
-                }}
-              >
-                <Sparkles size={11} /> Verified Academic Student
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    color: '#4338CA',
+                    background: '#EEF2FF',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid #C7D2FE',
+                  }}
+                >
+                  <Crown size={11} /> Plan: {user?.plan === 'pro' ? 'StudySync Pro (10 Courses)' : user?.plan === 'plus' ? 'StudySync Plus (5 Courses)' : user?.plan === 'campus' ? 'Campus Enterprise (25 Courses)' : 'StudySync Free (1 Course)'}
+                </span>
+
+                {user?.plan === 'pro' || user?.plan === 'campus' ? (
+                  <a
+                    href={buildWhatsAppExtraCourseUrl(email || user?.email)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: '#047857',
+                      background: '#ECFDF5',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      textDecoration: 'none',
+                      border: '1px solid #A7F3D0',
+                    }}
+                  >
+                    <MessageSquare size={11} /> + Extra Course (Rs. 100)
+                  </a>
+                ) : (
+                  <a
+                    href={buildWhatsAppPurchaseUrl('pro', 'monthly', email || user?.email)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: '#047857',
+                      background: '#ECFDF5',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      textDecoration: 'none',
+                      border: '1px solid #A7F3D0',
+                    }}
+                  >
+                    <MessageSquare size={11} /> Upgrade on WhatsApp (Rs. 2,000/mo)
+                  </a>
+                )}
+              </div>
             </div>
           </div>
 

@@ -2,6 +2,7 @@ import Groq, { toFile } from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../../config';
 import { getAcademicCalendarPromptContext, deeplyCalculateAcademicDeadline } from '../../utils/systemDateTime';
+import { resolveAIClientForUser } from './keyResolver';
 
 // ─── Groq Client Rotation (Speed-critical: STT + Intent Classification) ──
 
@@ -1066,7 +1067,8 @@ Formatting Rules for WhatsApp:
     courseName: string,
     chunks: string[],
     history: Array<{ role: 'user' | 'assistant'; text: string }> = [],
-    enableThink: boolean = false
+    enableThink: boolean = false,
+    userId?: string
   ): Promise<string> {
     const hasContext = chunks && chunks.length > 0;
     const contextText = hasContext
@@ -1216,8 +1218,13 @@ ${question}`;
         question
       );
 
+    // Resolve user's BYOK client or fallback to system rotation
+    const resolved = userId ? await resolveAIClientForUser(userId) : null;
+    const groq = (resolved?.isByok && resolved.provider === 'groq' && resolved.groqClient)
+      ? resolved.groqClient
+      : getNextGroqClient();
+
     // 1. PRIMARY FOR SPEED: Ultra-Fast Groq LPUs (<1 second response time with 120B model)
-    const groq = getNextGroqClient();
     if (groq && !enableThink) {
       try {
         const groqMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
@@ -1257,7 +1264,11 @@ ${question}`;
     }
 
     // 2. PRIMARY FOR THINK MODE OR HIGH CAPACITY FALLBACK: Gemini 3.6 Flash
-    if (genAI) {
+    const effectiveGemini = (resolved?.isByok && resolved.provider === 'gemini' && resolved.geminiClient)
+      ? resolved.geminiClient
+      : genAI;
+
+    if (effectiveGemini) {
       try {
         const geminiAnswer = await this.generateRAGWithGemini(systemPrompt, userPrompt, history);
         if (geminiAnswer) return geminiAnswer;

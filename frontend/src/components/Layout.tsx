@@ -12,14 +12,59 @@ import {
   LogIn,
   Menu,
   X,
+  Sparkles,
+  Zap,
 } from 'lucide-react';
 import { authApi } from '../services/api';
 import toast from 'react-hot-toast';
 
 interface LayoutProps {
-  user: { fullName: string; email: string; role?: string } | null;
+  user: {
+    fullName: string;
+    email: string;
+    role?: string;
+    plan?: string;
+    avatarUrl?: string;
+  } | null;
   onLogout?: () => void;
 }
+
+const getInitials = (name?: string) => {
+  if (!name || !name.trim()) return 'U';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const getPlanBadge = (plan?: string) => {
+  const norm = (plan || '').trim().toLowerCase();
+  if (norm === 'pro') {
+    return {
+      label: 'Pro',
+      className: 'sidebar-plan-pro',
+      icon: <Sparkles size={11} className="sidebar-plan-icon" />,
+    };
+  }
+  if (norm === 'plus') {
+    return {
+      label: 'Plus',
+      className: 'sidebar-plan-plus',
+      icon: <Zap size={11} className="sidebar-plan-icon" fill="currentColor" />,
+    };
+  }
+  if (norm === 'campus') {
+    return {
+      label: 'Campus',
+      className: 'sidebar-plan-campus',
+      icon: <GraduationCap size={11} className="sidebar-plan-icon" />,
+    };
+  }
+  return {
+    label: 'Free',
+    className: 'sidebar-plan-free',
+    icon: null,
+  };
+};
 
 export default function Layout({ user, onLogout }: LayoutProps) {
   const navigate = useNavigate();
@@ -178,7 +223,7 @@ export default function Layout({ user, onLogout }: LayoutProps) {
             </NavLink>
           </div>
 
-          {user?.role === 'admin' && (
+          {user?.role === 'admin' && !user?.email?.toLowerCase().includes('arham.solution.me') && (
             <div className="sidebar-nav-section">
               <div className="sidebar-nav-label" style={{ color: '#F59E0B' }}>Governance</div>
               <NavLink
@@ -208,19 +253,44 @@ export default function Layout({ user, onLogout }: LayoutProps) {
             </div>
           )}
 
-          <div className="sidebar-logout-item">
+          <div className="sidebar-footer-profile-section">
             {user ? (
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="sidebar-logout-btn-link"
-                title="Log out safely"
-              >
-                <div className="sidebar-nav-icon-wrap">
-                  <LogOut size={18} />
-                </div>
-                <span className="sidebar-nav-title">Sign Out</span>
-              </button>
+              <div className="sidebar-profile-card">
+                <NavLink
+                  to="/settings"
+                  className="sidebar-profile-info-link"
+                  title="View Profile & Settings"
+                >
+                  <div className="sidebar-profile-avatar">
+                    {getInitials(user.fullName)}
+                  </div>
+                  <div className="sidebar-profile-details">
+                    <span className="sidebar-profile-name" title={user.fullName || 'Student'}>
+                      {user.fullName || 'Student'}
+                    </span>
+                    <div className="sidebar-profile-plan-wrap">
+                      {(() => {
+                        const badge = getPlanBadge(user.plan);
+                        return (
+                          <span className={`sidebar-profile-plan-badge ${badge.className}`}>
+                            {badge.icon}
+                            <span>{badge.label}</span>
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </NavLink>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="sidebar-profile-logout-btn"
+                  title="Sign Out"
+                  aria-label="Sign Out"
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
             ) : (
               <NavLink
                 to="/login"

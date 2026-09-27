@@ -13,10 +13,12 @@ import {
   Sparkles,
   AlertCircle,
   RefreshCw,
+  MessageSquare,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { coursesApi, tasksApi } from '../services/api';
+import { coursesApi, tasksApi, authApi } from '../services/api';
+import { buildWhatsAppPurchaseUrl, buildWhatsAppExtraCourseUrl } from '../config/plans';
 
 interface Course {
   id: string;
@@ -82,9 +84,24 @@ export default function Courses() {
   const [isIngesting, setIsIngesting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
+  // User Plan & Quota State
+  const [userPlanInfo, setUserPlanInfo] = useState<any>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeModalMsg, setUpgradeModalMsg] = useState('');
+
   useEffect(() => {
     fetchCourses();
+    fetchPlanInfo();
   }, []);
+
+  const fetchPlanInfo = async () => {
+    try {
+      const res = await authApi.me();
+      if (res.data?.data?.user?.planInfo) {
+        setUserPlanInfo(res.data.data.user.planInfo);
+      }
+    } catch {}
+  };
 
   const fetchCourses = async () => {
     try {
@@ -138,6 +155,25 @@ export default function Courses() {
       return;
     }
 
+    const maxAllowed = userPlanInfo?.maxCourses ?? 1;
+    if (courses.length >= maxAllowed) {
+      setShowAddModal(false);
+      setShowUpgradeModal(true);
+      const isTopTier = userPlanInfo?.plan === 'pro' || userPlanInfo?.plan === 'campus';
+      if (isTopTier) {
+        setUpgradeModalMsg(
+          `Aap StudySync ke sab se heavy plan (${userPlanInfo?.planName || 'StudySync Pro'}) par hain aur aapki ${maxAllowed} courses ki limit reach ho chuki hai. Agar aap mazeed course add karna chahte hain to sirf Rs. 100 me milega!`
+        );
+      } else {
+        setUpgradeModalMsg(
+          `You have reached the maximum course limit (${courses.length}/${maxAllowed} courses) for your ${
+            userPlanInfo?.planName || 'Free Plan'
+          }. Please upgrade on WhatsApp to add more courses.`
+        );
+      }
+      return;
+    }
+
     try {
       setIsCreatingCourse(true);
       await coursesApi.create({
@@ -148,8 +184,15 @@ export default function Courses() {
       setNewCourseName('');
       setShowAddModal(false);
       fetchCourses();
-    } catch {
-      toast.error('Failed to create course.');
+      fetchPlanInfo();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Failed to create course.';
+      toast.error(msg);
+      if (err?.response?.data?.planLimitReached) {
+        setShowAddModal(false);
+        setShowUpgradeModal(true);
+        setUpgradeModalMsg(msg);
+      }
     } finally {
       setIsCreatingCourse(false);
     }
@@ -168,6 +211,7 @@ export default function Courses() {
         setActiveCourse(null);
       }
       fetchCourses();
+      fetchPlanInfo();
     } catch {
       toast.error('Failed to delete course.');
     }
@@ -198,15 +242,38 @@ export default function Courses() {
     const files = e.target.files;
     if (!files || files.length === 0 || !activeCourse) return;
 
+    const fileList = Array.from(files);
+    const maxMB = userPlanInfo?.maxUploadMB ?? 10;
+    const maxBytes = maxMB * 1024 * 1024;
+
+    for (const f of fileList) {
+      if (f.size > maxBytes) {
+        const actualMB = (f.size / (1024 * 1024)).toFixed(1);
+        toast.error(`File "${f.name}" (${actualMB}MB) exceeds your ${maxMB}MB plan limit.`);
+        setShowUpgradeModal(true);
+        setUpgradeModalMsg(
+          `File "${f.name}" (${actualMB}MB) exceeds your ${maxMB}MB upload limit for ${
+            userPlanInfo?.planName || 'Free Plan'
+          }. Please upgrade to Plus (50MB) or Pro (150MB) on WhatsApp to upload larger materials.`
+        );
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+    }
+
     try {
       setIsUploading(true);
-      const fileList = Array.from(files);
       await coursesApi.uploadMaterial(activeCourse.id, fileList);
       toast.success(`Uploaded and indexed ${fileList.length} file(s) into AI Knowledge Base!`);
       fetchCourses();
       if (fileInputRef.current) fileInputRef.current.value = '';
-    } catch {
-      toast.error('Failed to upload files.');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Failed to upload files.';
+      toast.error(msg);
+      if (err?.response?.data?.planLimitReached) {
+        setShowUpgradeModal(true);
+        setUpgradeModalMsg(msg);
+      }
     } finally {
       setIsUploading(false);
     }
@@ -246,19 +313,62 @@ export default function Courses() {
             <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0 }}>
               Courses
             </h1>
-            <span
-              style={{
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                color: '#4F46E5',
-                background: '#EEF2FF',
-                padding: '3px 11px',
-                borderRadius: 20,
-                border: '1px solid #C7D2FE',
-              }}
-            >
-              {courses.length} {courses.length === 1 ? 'Course' : 'Courses'}
-            </span>
+            {(() => {
+              const maxAllowed = userPlanInfo?.maxCourses ?? 1;
+              const isFull = courses.length >= maxAllowed;
+              return (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      color: isFull ? '#B91C1C' : '#4F46E5',
+                      background: isFull ? '#FEF2F2' : '#EEF2FF',
+                      padding: '4px 12px',
+                      borderRadius: 20,
+                      border: `1px solid ${isFull ? '#FECACA' : '#C7D2FE'}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <span>Quota: {courses.length} / {maxAllowed} ({userPlanInfo?.planName || 'Free Trial'})</span>
+                    {isFull && (
+                      <span style={{ fontSize: '0.65rem', background: '#EF4444', color: '#FFF', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                        LIMIT REACHED
+                      </span>
+                    )}
+                  </span>
+
+                  {isFull && (
+                    <button
+                      onClick={() => {
+                        setShowUpgradeModal(true);
+                        setUpgradeModalMsg(
+                          `You have reached the maximum course capacity (${courses.length}/${maxAllowed} courses) for your ${userPlanInfo?.planName || 'Free Trial'}.`
+                        );
+                      }}
+                      style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        color: '#047857',
+                        background: '#ECFDF5',
+                        padding: '4px 12px',
+                        borderRadius: 20,
+                        border: '1px solid #A7F3D0',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <Sparkles size={12} color="#059669" />
+                      <span>Upgrade Plan on WhatsApp</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           <p style={{ color: '#64748B', fontSize: '0.9rem', marginTop: 4, marginBottom: 0 }}>
             Manage academic subjects, syllabus tasks, and AI vector knowledge bases.
@@ -266,7 +376,17 @@ export default function Courses() {
         </div>
 
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            const maxAllowed = userPlanInfo?.maxCourses ?? 1;
+            if (courses.length >= maxAllowed) {
+              setShowUpgradeModal(true);
+              setUpgradeModalMsg(
+                `You have reached the maximum course capacity (${courses.length}/${maxAllowed} courses) for your ${userPlanInfo?.planName || 'Free Trial'}. Please upgrade your plan on WhatsApp to create more courses.`
+              );
+            } else {
+              setShowAddModal(true);
+            }
+          }}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -1006,6 +1126,9 @@ export default function Courses() {
                     </div>
                     <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: 2, marginBottom: 12 }}>
                       Supports PDF, DOCX, PPTX slides, XLSX, TXT, code files & voice notes
+                      <span style={{ display: 'block', marginTop: 4, fontWeight: 600, color: '#4F46E5' }}>
+                        Max upload size: {userPlanInfo?.maxUploadMB ?? 10}MB per file ({userPlanInfo?.planName || 'Free Trial'})
+                      </span>
                     </div>
                     <input
                       ref={fileInputRef}
@@ -1329,6 +1452,279 @@ export default function Courses() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Plan Limit Reached & Upgrade Modal ─── */}
+      {showUpgradeModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: 16,
+          }}
+          onClick={() => setShowUpgradeModal(false)}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 18,
+              maxWidth: 520,
+              width: '100%',
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden',
+              animation: 'modalSlideIn 0.22s ease-out',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 100%)',
+                color: '#FFF',
+                padding: '24px 28px',
+                position: 'relative',
+              }}
+            >
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                style={{
+                  position: 'absolute',
+                  top: 18,
+                  right: 18,
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  border: 'none',
+                  color: '#FFF',
+                  borderRadius: '50%',
+                  width: 30,
+                  height: 30,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={16} />
+              </button>
+
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: '#25D366',
+                  color: '#075E54',
+                  padding: '3px 10px',
+                  borderRadius: 20,
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  marginBottom: 10,
+                }}
+              >
+                ⚡ Instant WhatsApp Upgrade Desk
+              </div>
+              <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, color: '#FFF' }}>
+                Course Capacity Limit Reached
+              </h3>
+              <p style={{ margin: '6px 0 0', fontSize: '0.86rem', color: '#C7D2FE', lineHeight: 1.45 }}>
+                {upgradeModalMsg ||
+                  `You have reached the maximum course limit for your ${userPlanInfo?.planName || 'Free Trial'}.`}
+              </p>
+            </div>
+
+            {/* Modal Content Body */}
+            <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {userPlanInfo?.plan === 'pro' || userPlanInfo?.plan === 'campus' ? (
+                /* ─── Heavy Plan / Pro User Extra Course Add-on ─── */
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #F0FDF4 0%, #EEF2FF 100%)',
+                    border: '1.5px solid #86EFAC',
+                    borderRadius: 14,
+                    padding: 20,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        background: '#16A34A',
+                        color: '#FFF',
+                        fontWeight: 800,
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      TOP-TIER ADD-ON
+                    </span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#166534' }}>
+                      Heavy Plan Expansion
+                    </span>
+                  </div>
+
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '1.15rem', color: '#0F172A', fontWeight: 800 }}>
+                    Mazeed Courses Sirf Rs. 100 / Course me!
+                  </h4>
+
+                  <p style={{ margin: '0 0 14px 0', fontSize: '0.86rem', color: '#334155', lineHeight: 1.5 }}>
+                    Aap already platform ke sab se heavy plan (<strong>{userPlanInfo?.planName || 'StudySync Pro'}</strong>) par enrolled hain. Agar aap mazeed courses add karna chahte hain, to koi naya subscription package buy karne ki zaroorat nahi — har extra course sirf <strong>Rs. 100 (100 PKR)</strong> me milega!
+                  </p>
+
+                  <div style={{ background: '#FFF', border: '1px solid #BBF7D0', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <strong style={{ fontSize: '0.92rem', color: '#065F46' }}>Extra Course Capacity</strong>
+                        <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 2 }}>
+                          Permanent slot addition with 150MB uploads & AI chat
+                        </div>
+                      </div>
+                      <span style={{ fontWeight: 800, color: '#16A34A', fontSize: '1.15rem' }}>
+                        Rs. 100 <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>/ course</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <a
+                    href={buildWhatsAppExtraCourseUrl(userPlanInfo?.email)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      padding: '13px 20px',
+                      borderRadius: 10,
+                      background: 'linear-gradient(135deg, #16A34A 0%, #15803D 100%)',
+                      color: '#FFF',
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      textDecoration: 'none',
+                      boxShadow: '0 4px 14px rgba(22, 163, 74, 0.35)',
+                      transition: 'transform 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'none';
+                    }}
+                  >
+                    <MessageSquare size={18} />
+                    <span>Rs. 100 me Extra Course Buy Karein (WhatsApp)</span>
+                  </a>
+                </div>
+              ) : (
+                /* ─── Plus / Pro Tier Upgrades in PKR ─── */
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 16 }}>
+                  <div
+                    style={{
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      color: '#475569',
+                      marginBottom: 10,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    Choose Your Next Upgrade Tier:
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '12px 14px',
+                        background: '#FFF',
+                        borderRadius: 10,
+                        border: '1px solid #E2E8F0',
+                      }}
+                    >
+                      <div>
+                        <strong style={{ fontSize: '0.925rem', color: '#1E1B4B' }}>StudySync Plus</strong>
+                        <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 2 }}>
+                          Up to 5 Courses • 50MB file uploads • Full WhatsApp
+                        </div>
+                      </div>
+                      <span style={{ fontWeight: 800, color: '#4F46E5', fontSize: '0.95rem' }}>Rs. 1,000/mo</span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '12px 14px',
+                        background: '#F0FDF4',
+                        borderRadius: 10,
+                        border: '1px solid #BBF7D0',
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <strong style={{ fontSize: '0.925rem', color: '#065F46' }}>StudySync Pro</strong>
+                          <span
+                            style={{
+                              fontSize: '0.62rem',
+                              background: '#22C55E',
+                              color: '#FFF',
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              fontWeight: 700,
+                            }}
+                          >
+                            MOST POPULAR
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#047857', marginTop: 2 }}>
+                          Up to 10 Courses • 150MB uploads • Multi-Model Switcher
+                        </div>
+                      </div>
+                      <span style={{ fontWeight: 800, color: '#059669', fontSize: '0.95rem' }}>Rs. 2,000/mo</span>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons for Normal Upgrades */}
+                  <div style={{ marginTop: 14 }}>
+                    <a
+                      href={userPlanInfo?.whatsappUpgradeUrl || buildWhatsAppPurchaseUrl('plus', 'monthly')}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        padding: '13px 20px',
+                        borderRadius: 10,
+                        background: 'linear-gradient(135deg, #25D366 0%, #16A34A 100%)',
+                        color: '#FFF',
+                        fontWeight: 700,
+                        fontSize: '0.95rem',
+                        textDecoration: 'none',
+                        boxShadow: '0 4px 16px rgba(37, 211, 102, 0.35)',
+                      }}
+                    >
+                      <MessageSquare size={18} />
+                      <span>Upgrade on WhatsApp Now (Auto-Message)</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ textAlign: 'center', fontSize: '0.75rem', color: '#64748B' }}>
+                Admin (Muhammad Arham) will activate your account via WhatsApp (+923030111550)
+              </div>
+            </div>
           </div>
         </div>
       )}

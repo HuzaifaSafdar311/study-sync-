@@ -22,6 +22,11 @@ import {
   LogOut,
   KeyRound,
   ShieldAlert,
+  MessageSquare,
+  Mail,
+  HardDrive,
+  Eye,
+  X,
 } from 'lucide-react';
 import '../styles/admin.css';
 
@@ -40,6 +45,11 @@ export default function AdminPortal() {
   const [userPlanFilter, setUserPlanFilter] = useState('all');
   const [userStatusFilter, setUserStatusFilter] = useState('all');
 
+  // Fast-Action Upgrade Desk State (for WhatsApp orders)
+  const [upgradeEmail, setUpgradeEmail] = useState('');
+  const [upgradePlan, setUpgradePlan] = useState<'trial' | 'plus' | 'pro' | 'campus'>('plus');
+  const [isUpgradingEmail, setIsUpgradingEmail] = useState(false);
+
   const [coursesList, setCoursesList] = useState<any[]>([]);
   const [coursesPagination, setCoursesPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [courseSearch, setCourseSearch] = useState('');
@@ -55,6 +65,7 @@ export default function AdminPortal() {
 
   // Action states
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [selectedUserForModal, setSelectedUserForModal] = useState<any | null>(null);
 
   // Initial authorization check
   useEffect(() => {
@@ -64,7 +75,7 @@ export default function AdminPortal() {
   const checkAdminAuth = async () => {
     const token = getAdminToken();
     if (!token) {
-      navigate('/admin/login', { replace: true });
+      navigate('/login', { replace: true });
       return;
     }
 
@@ -75,11 +86,11 @@ export default function AdminPortal() {
         loadAllData();
       } else {
         setAdminToken(null);
-        navigate('/admin/login', { replace: true });
+        navigate('/login', { replace: true });
       }
     } catch {
       setAdminToken(null);
-      navigate('/admin/login', { replace: true });
+      navigate('/login', { replace: true });
     }
   };
 
@@ -89,7 +100,7 @@ export default function AdminPortal() {
     } catch {}
     setAdminToken(null);
     toast.success('Admin session ended securely.');
-    navigate('/admin/login', { replace: true });
+    navigate('/login', { replace: true });
   };
 
   useEffect(() => {
@@ -188,7 +199,7 @@ export default function AdminPortal() {
     }
   };
 
-  const handlePlanChange = async (userId: string, newPlan: 'free' | 'pro' | 'campus') => {
+  const handlePlanChange = async (userId: string, newPlan: string) => {
     setActionLoadingId(userId);
     try {
       const res = await adminApi.updateUserPlan(userId, newPlan);
@@ -203,6 +214,28 @@ export default function AdminPortal() {
       toast.error(err?.response?.data?.message || 'Failed to update plan');
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const handleDirectEmailUpgrade = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!upgradeEmail.trim()) {
+      toast.error('Please enter the student email address.');
+      return;
+    }
+    setIsUpgradingEmail(true);
+    try {
+      const res = await adminApi.upgradeUserByEmail(upgradeEmail.trim(), upgradePlan);
+      if (res.data.success) {
+        toast.success(res.data.message || `Student plan upgraded successfully!`);
+        setUpgradeEmail('');
+        fetchUsers(1);
+        fetchOverview();
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to upgrade student plan.');
+    } finally {
+      setIsUpgradingEmail(false);
     }
   };
 
@@ -301,73 +334,111 @@ export default function AdminPortal() {
 
   const uStats = overview?.users || {};
   const aStats = overview?.activity || {};
+  const tStats = overview?.telemetry || {};
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell admin-has-sidebar">
       <div className="admin-shell-glow" />
       <div className="admin-shell-glow-2" />
 
-      {/* ─── Dedicated Admin Navigation Bar ─────────────────────────────── */}
-      <header className="admin-nav">
-        <div className="admin-nav-left">
+      {/* ─── Dedicated Admin Left Sidebar ─────────────────────────────── */}
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar-header">
           <div className="admin-brand-icon">
-            <Shield size={22} />
+            <Shield size={20} />
           </div>
-          <div className="admin-brand-text">
-            <h2>StudySync AI Operations</h2>
-            <p>High-Security Control Center</p>
+          <div className="admin-sidebar-brand">
+            <h2>StudySync</h2>
+            <span>Admin</span>
           </div>
         </div>
 
-        <div className="admin-nav-right">
-          <div className="admin-badge-live">
-            <span className="admin-pulse-dot" />
-            Live DB Connected
-          </div>
+        <div className="admin-sidebar-status">
+          <span className="admin-pulse-dot" />
+          <span>Connected</span>
+        </div>
 
+        <nav className="admin-sidebar-nav">
+          <button
+            type="button"
+            onClick={() => setActiveTab('overview')}
+            className={`admin-nav-item ${activeTab === 'overview' ? 'active' : ''}`}
+          >
+            <Activity size={18} />
+            <span>Dashboard</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('users')}
+            className={`admin-nav-item ${activeTab === 'users' ? 'active' : ''}`}
+          >
+            <Users size={18} />
+            <span>Students</span>
+            <span className="admin-nav-badge">{uStats.total || 0}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('courses')}
+            className={`admin-nav-item ${activeTab === 'courses' ? 'active' : ''}`}
+          >
+            <BookOpen size={18} />
+            <span>Courses</span>
+            <span className="admin-nav-badge">{aStats.totalCourses || 0}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('ai')}
+            className={`admin-nav-item ${activeTab === 'ai' ? 'active' : ''}`}
+          >
+            <Cpu size={18} />
+            <span>AI Quotas</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('security')}
+            className={`admin-nav-item ${activeTab === 'security' ? 'active' : ''}`}
+          >
+            <Lock size={18} />
+            <span>Security</span>
+          </button>
+        </nav>
+
+        <div className="admin-sidebar-footer">
           {adminUser && (
-            <div className="admin-user-pill">
-              <Key size={14} style={{ color: '#F59E0B' }} />
-              <span>Admin: <strong>{adminUser.username}</strong></span>
+            <div className="admin-sidebar-user" title={adminUser.email || adminUser.username}>
+              <Key size={14} style={{ color: '#F59E0B', flexShrink: 0 }} />
+              <span>{adminUser.username || adminUser.email}</span>
             </div>
           )}
-
-          <button onClick={handleLogout} className="admin-btn-logout" title="Sign out of Operations">
+          <button type="button" onClick={handleLogout} className="admin-sidebar-logout" title="Sign out">
             <LogOut size={15} />
-            Sign Out
+            <span>Sign Out</span>
           </button>
         </div>
-      </header>
+      </aside>
 
-      {/* ─── Main Admin Container ───────────────────────────────────────── */}
-      <main className="admin-container">
-        {/* Banner Card */}
-        <section className="admin-banner">
-          <div className="admin-banner-glow" />
-          <div>
-            <div className="admin-banner-header">
-              <span className="admin-role-badge">
-                <Shield size={13} />
-                Isolated Master Session
-              </span>
-              <span style={{ fontSize: '0.8rem', color: '#94A3B8' }}>
-                Active Admin ID: <strong style={{ color: '#CBD5E1' }}>{adminUser?.email || 'admin@studysync.ai'}</strong>
-              </span>
-            </div>
-            <h1 className="admin-banner-title">Platform Operations Center</h1>
-            <p className="admin-banner-subtitle">
-              Monitor real-time student activity, govern subscriptions, audit BYOK vs System AI token consumption, and enforce moderation.
-            </p>
+      {/* ─── Main Admin Workspace ─────────────────────────────────────── */}
+      <div className="admin-main-wrap">
+        <header className="admin-topbar">
+          <div className="admin-topbar-left">
+            <h1 className="admin-page-title">
+              {activeTab === 'overview' && 'Dashboard'}
+              {activeTab === 'users' && 'Students'}
+              {activeTab === 'courses' && 'Courses'}
+              {activeTab === 'ai' && 'AI Quotas'}
+              {activeTab === 'security' && 'Security'}
+            </h1>
           </div>
 
-          <div className="admin-banner-actions">
+          <div className="admin-topbar-actions">
             <button
+              type="button"
               onClick={handleRefresh}
               className="admin-btn-primary"
               disabled={refreshing}
             >
-              <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
-              {refreshing ? 'Syncing...' : 'Sync Telemetry'}
+              <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Syncing...' : 'Sync'}
             </button>
             <a
               href="https://supabase.com/dashboard/project/twluwkcduduvswmjvqfl"
@@ -375,142 +446,168 @@ export default function AdminPortal() {
               rel="noopener noreferrer"
               className="admin-btn-secondary"
             >
-              <Database size={15} style={{ color: '#38BDF8' }} />
-              Supabase Cloud
-              <ExternalLink size={13} />
+              <Database size={14} style={{ color: '#38BDF8' }} />
+              <span>Cloud DB</span>
+              <ExternalLink size={12} />
             </a>
           </div>
-        </section>
+        </header>
 
-        {/* ─── 4 KPI Metrics Grid ───────────────────────────────────────── */}
-        <section className="admin-stats-grid">
-          <div className="admin-stat-card">
-            <div className="admin-stat-top">
-              <span className="admin-stat-label">Total Students</span>
-              <div className="admin-stat-icon indigo">
-                <Users size={19} />
-              </div>
-            </div>
-            <div className="admin-stat-value">{uStats.total || 0}</div>
-            <div className="admin-stat-subtext">
-              <strong style={{ color: '#34D399' }}>+{uStats.newThisWeek || 0}</strong> new this week • {uStats.blocked || 0} suspended
-            </div>
-          </div>
+        <main className="admin-body">
+          {/* ─── TAB 1: OVERVIEW & ANALYTICS ─────────────────────────────── */}
+          {activeTab === 'overview' && (
+            <div className="animate-fadeIn">
+              {/* 8 KPI Metrics Grid with Punchy Labels */}
+              <section className="admin-stats-grid" style={{ marginBottom: '24px' }}>
+                <div className="admin-stat-card">
+                  <div className="admin-stat-top">
+                    <span className="admin-stat-label">Students</span>
+                    <div className="admin-stat-icon indigo">
+                      <Users size={19} />
+                    </div>
+                  </div>
+                  <div className="admin-stat-value">{uStats.total || 0}</div>
+                  <div className="admin-stat-subtext">
+                    <strong style={{ color: '#34D399' }}>+{uStats.newThisWeek || 0}</strong> this week • {uStats.blocked || 0} suspended
+                  </div>
+                </div>
 
-          <div className="admin-stat-card">
-            <div className="admin-stat-top">
-              <span className="admin-stat-label">Pro / Campus Plans</span>
-              <div className="admin-stat-icon amber">
-                <Sparkles size={19} />
-              </div>
-            </div>
-            <div className="admin-stat-value">
-              {(uStats.planBreakdown?.pro || 0) + (uStats.planBreakdown?.campus || 0)}
-            </div>
-            <div className="admin-stat-subtext">
-              {uStats.planBreakdown?.free || 0} on Free tier
-            </div>
-          </div>
+                <div className="admin-stat-card">
+                  <div className="admin-stat-top">
+                    <span className="admin-stat-label">Pro & Campus</span>
+                    <div className="admin-stat-icon amber">
+                      <Sparkles size={19} />
+                    </div>
+                  </div>
+                  <div className="admin-stat-value">
+                    {(uStats.planBreakdown?.pro || 0) + (uStats.planBreakdown?.campus || 0)}
+                  </div>
+                  <div className="admin-stat-subtext">
+                    {uStats.planBreakdown?.free || 0} on Free
+                  </div>
+                </div>
 
-          <div className="admin-stat-card">
-            <div className="admin-stat-top">
-              <span className="admin-stat-label">Active Courses</span>
-              <div className="admin-stat-icon cyan">
-                <BookOpen size={19} />
-              </div>
-            </div>
-            <div className="admin-stat-value">{aStats.totalCourses || 0}</div>
-            <div className="admin-stat-subtext">
-              {aStats.blockedCourses || 0} suspended • {aStats.totalMaterials || 0} materials
-            </div>
-          </div>
+                <div className="admin-stat-card">
+                  <div className="admin-stat-top">
+                    <span className="admin-stat-label">Courses</span>
+                    <div className="admin-stat-icon cyan">
+                      <BookOpen size={19} />
+                    </div>
+                  </div>
+                  <div className="admin-stat-value">{aStats.totalCourses || 0}</div>
+                  <div className="admin-stat-subtext">
+                    {aStats.blockedCourses || 0} suspended • {aStats.totalMaterials || 0} materials
+                  </div>
+                </div>
 
-          <div className="admin-stat-card">
-            <div className="admin-stat-top">
-              <span className="admin-stat-label">AI Interactions</span>
-              <div className="admin-stat-icon emerald">
-                <Cpu size={19} />
-              </div>
-            </div>
-            <div className="admin-stat-value">{aStats.totalChatMessages || 0}</div>
-            <div className="admin-stat-subtext">
-              {uStats.aiModeBreakdown?.byok || 0} BYOK users • {uStats.aiModeBreakdown?.system || 0} System Key
-            </div>
-          </div>
-        </section>
+                <div className="admin-stat-card">
+                  <div className="admin-stat-top">
+                    <span className="admin-stat-label">Storage</span>
+                    <div className="admin-stat-icon indigo">
+                      <HardDrive size={19} />
+                    </div>
+                  </div>
+                  <div className="admin-stat-value">
+                    {tStats.totalUploadMB || 0} <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>MB</span>
+                  </div>
+                  <div className="admin-stat-subtext">
+                    {tStats.totalUploadedFiles || aStats.totalMaterials || 0} files uploaded
+                  </div>
+                </div>
 
-        {/* ─── Navigation Tabs ─────────────────────────────────────────── */}
-        <nav className="admin-tabs">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`admin-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
-          >
-            <Activity size={16} />
-            Overview & Analytics
-          </button>
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`admin-tab-btn ${activeTab === 'users' ? 'active' : ''}`}
-          >
-            <Users size={16} />
-            Student Directory
-            <span className="admin-tab-badge">{uStats.total || 0}</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('courses')}
-            className={`admin-tab-btn ${activeTab === 'courses' ? 'active' : ''}`}
-          >
-            <BookOpen size={16} />
-            Course Moderation
-            <span className="admin-tab-badge">{aStats.totalCourses || 0}</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('ai')}
-            className={`admin-tab-btn ${activeTab === 'ai' ? 'active' : ''}`}
-          >
-            <Cpu size={16} />
-            AI & BYOK Quotas
-          </button>
-          <button
-            onClick={() => setActiveTab('security')}
-            className={`admin-tab-btn ${activeTab === 'security' ? 'active' : ''}`}
-          >
-            <Lock size={16} />
-            Security & Credentials
-          </button>
-        </nav>
+                <div className="admin-stat-card">
+                  <div className="admin-stat-top">
+                    <span className="admin-stat-label">System AI</span>
+                    <div className="admin-stat-icon amber">
+                      <Zap size={19} />
+                    </div>
+                  </div>
+                  <div className="admin-stat-value">{tStats.totalSystemAiCalls || 0}</div>
+                  <div className="admin-stat-subtext">
+                    3 msgs / user limit
+                  </div>
+                </div>
 
-        {/* ─── TAB 1: OVERVIEW & ANALYTICS ─────────────────────────────── */}
-        {activeTab === 'overview' && (
-          <div className="animate-fadeIn">
+                <div className="admin-stat-card">
+                  <div className="admin-stat-top">
+                    <span className="admin-stat-label">WhatsApp</span>
+                    <div className="admin-stat-icon emerald">
+                      <MessageSquare size={19} />
+                    </div>
+                  </div>
+                  <div className="admin-stat-value">{tStats.totalWhatsAppSent || 0}</div>
+                  <div className="admin-stat-subtext">
+                    Total alerts sent
+                  </div>
+                </div>
+
+                <div className="admin-stat-card">
+                  <div className="admin-stat-top">
+                    <span className="admin-stat-label">Emails</span>
+                    <div className="admin-stat-icon cyan">
+                      <Mail size={19} />
+                    </div>
+                  </div>
+                  <div className="admin-stat-value">{tStats.totalEmailsSent || 0}</div>
+                  <div className="admin-stat-subtext">
+                    Total alerts sent
+                  </div>
+                </div>
+
+                <div className="admin-stat-card">
+                  <div className="admin-stat-top">
+                    <span className="admin-stat-label">Chat Queries</span>
+                    <div className="admin-stat-icon emerald">
+                      <Cpu size={19} />
+                    </div>
+                  </div>
+                  <div className="admin-stat-value">{aStats.totalChatMessages || 0}</div>
+                  <div className="admin-stat-subtext">
+                    {uStats.aiModeBreakdown?.byok || 0} BYOK • {uStats.aiModeBreakdown?.system || 0} System
+                  </div>
+                </div>
+              </section>
             <div className="admin-grid-2">
               <div className="admin-card-section">
-                <h3>Subscription Plans Breakdown</h3>
-                <p className="sub">Distribution of student accounts across billing tiers</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <h3>Plans</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px' }}>
-                      <span>Free Plan (Standard)</span>
-                      <strong>{uStats.planBreakdown?.free || 0} students</strong>
+                      <span style={{ color: '#64748B' }}>Free Trial (1 Course)</span>
+                      <strong>{(uStats.planBreakdown?.trial ?? uStats.planBreakdown?.free) || 0} students</strong>
                     </div>
-                    <div style={{ height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '9999px', overflow: 'hidden' }}>
+                    <div style={{ height: '8px', background: '#E2E8F0', borderRadius: '9999px', overflow: 'hidden' }}>
                       <div style={{
                         height: '100%',
                         background: '#94A3B8',
-                        width: `${((uStats.planBreakdown?.free || 0) / Math.max(uStats.total || 1, 1)) * 100}%`
+                        width: `${(((uStats.planBreakdown?.trial ?? uStats.planBreakdown?.free) || 0) / Math.max(uStats.total || 1, 1)) * 100}%`
                       }} />
                     </div>
                   </div>
 
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px' }}>
-                      <span style={{ color: '#818CF8' }}>Pro Plan ($9/mo)</span>
-                      <strong style={{ color: '#818CF8' }}>{uStats.planBreakdown?.pro || 0} students</strong>
+                      <span style={{ color: '#0284C7' }}>Plus (Rs. 1,000/mo)</span>
+                      <strong style={{ color: '#0284C7' }}>{uStats.planBreakdown?.plus || 0} students</strong>
                     </div>
-                    <div style={{ height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '9999px', overflow: 'hidden' }}>
+                    <div style={{ height: '8px', background: '#E2E8F0', borderRadius: '9999px', overflow: 'hidden' }}>
                       <div style={{
                         height: '100%',
-                        background: '#6366F1',
+                        background: '#0284C7',
+                        width: `${((uStats.planBreakdown?.plus || 0) / Math.max(uStats.total || 1, 1)) * 100}%`
+                      }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px' }}>
+                      <span style={{ color: '#4F46E5' }}>Pro (Rs. 2,000/mo)</span>
+                      <strong style={{ color: '#4F46E5' }}>{uStats.planBreakdown?.pro || 0} students</strong>
+                    </div>
+                    <div style={{ height: '8px', background: '#E2E8F0', borderRadius: '9999px', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        background: '#4F46E5',
                         width: `${((uStats.planBreakdown?.pro || 0) / Math.max(uStats.total || 1, 1)) * 100}%`
                       }} />
                     </div>
@@ -518,13 +615,13 @@ export default function AdminPortal() {
 
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px' }}>
-                      <span style={{ color: '#FBBF24' }}>Campus Plan (University)</span>
-                      <strong style={{ color: '#FBBF24' }}>{uStats.planBreakdown?.campus || 0} students</strong>
+                      <span style={{ color: '#D97706' }}>Campus (Rs. 4,500/mo)</span>
+                      <strong style={{ color: '#D97706' }}>{uStats.planBreakdown?.campus || 0} students</strong>
                     </div>
-                    <div style={{ height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '9999px', overflow: 'hidden' }}>
+                    <div style={{ height: '8px', background: '#E2E8F0', borderRadius: '9999px', overflow: 'hidden' }}>
                       <div style={{
                         height: '100%',
-                        background: '#F59E0B',
+                        background: '#D97706',
                         width: `${((uStats.planBreakdown?.campus || 0) / Math.max(uStats.total || 1, 1)) * 100}%`
                       }} />
                     </div>
@@ -533,33 +630,22 @@ export default function AdminPortal() {
               </div>
 
               <div className="admin-card-section">
-                <h3>AI Key Consumption Model</h3>
-                <p className="sub">Platform resource usage vs user-provided BYOK keys</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ padding: '16px', background: 'var(--admin-bg-card)', borderRadius: '10px', border: '1px solid var(--admin-border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Zap size={16} style={{ color: '#F59E0B' }} />
-                        Server System Key
-                      </span>
-                      <span className="admin-pill plan-pro">{uStats.aiModeBreakdown?.system || 0} users</span>
-                    </div>
-                    <p style={{ margin: 0, fontSize: '0.78rem', color: '#94A3B8' }}>
-                      Consuming server system quotas (Gemini 2.5 Flash / Groq Llama 3.3).
-                    </p>
+                <h3>AI Models</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
+                  <div style={{ padding: '14px 16px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}>
+                      <Zap size={16} style={{ color: '#D97706' }} />
+                      Server System Key
+                    </span>
+                    <span className="admin-pill plan-pro">{uStats.aiModeBreakdown?.system || 0} users</span>
                   </div>
 
-                  <div style={{ padding: '16px', background: 'var(--admin-bg-card)', borderRadius: '10px', border: '1px solid var(--admin-border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Key size={16} style={{ color: '#06B6D4' }} />
-                        Student BYOK Keys
-                      </span>
-                      <span className="admin-pill plan-campus">{uStats.aiModeBreakdown?.byok || 0} users</span>
-                    </div>
-                    <p style={{ margin: 0, fontSize: '0.78rem', color: '#94A3B8' }}>
-                      Zero cost to server — users provided custom Gemini/Groq/OpenAI keys.
-                    </p>
+                  <div style={{ padding: '14px 16px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--admin-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}>
+                      <Key size={16} style={{ color: '#0284C7' }} />
+                      BYOK Custom Keys
+                    </span>
+                    <span className="admin-pill plan-campus">{uStats.aiModeBreakdown?.byok || 0} users</span>
                   </div>
                 </div>
               </div>
@@ -567,15 +653,14 @@ export default function AdminPortal() {
 
             {/* Recent Signups */}
             <div className="admin-card-section">
-              <h3>Recently Enrolled Students</h3>
-              <p className="sub">Latest student registrations synced from Supabase Cloud</p>
-              <div className="admin-table-wrapper" style={{ marginBottom: 0 }}>
+              <h3>Recent Students</h3>
+              <div className="admin-table-wrapper" style={{ marginBottom: 0, marginTop: '14px' }}>
                 <table className="admin-table">
                   <thead>
                     <tr>
                       <th>Student</th>
-                      <th>Billing Plan</th>
-                      <th>AI Preference</th>
+                      <th>Plan</th>
+                      <th>AI Mode</th>
                       <th>Registered</th>
                       <th>Status</th>
                     </tr>
@@ -600,7 +685,7 @@ export default function AdminPortal() {
                           </span>
                         </td>
                         <td>
-                          <span style={{ fontSize: '0.8rem', color: '#CBD5E1' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600 }}>
                             {s.aiProviderPreference === 'byok' ? 'Custom BYOK' : 'System Key'}
                           </span>
                         </td>
@@ -626,12 +711,101 @@ export default function AdminPortal() {
         {/* ─── TAB 2: STUDENT DIRECTORY ─────────────────────────────────── */}
         {activeTab === 'users' && (
           <div className="animate-fadeIn">
+            {/* ⚡ Instant WhatsApp Plan Upgrade Desk */}
+            {/* ⚡ Instant WhatsApp Plan Upgrade Desk */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #F0FDF4 0%, #EEF2FF 100%)',
+                border: '1px solid #BBF7D0',
+                borderRadius: '14px',
+                padding: '16px 20px',
+                marginBottom: '20px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '8px',
+                    background: '#16A34A',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FFF',
+                    flexShrink: 0,
+                  }}
+                >
+                  <MessageSquare size={16} />
+                </div>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0F172A' }}>
+                  Instant Upgrade
+                </h4>
+              </div>
+
+              <form onSubmit={handleDirectEmailUpgrade} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="email"
+                  placeholder="Student email..."
+                  value={upgradeEmail}
+                  onChange={(e) => setUpgradeEmail(e.target.value)}
+                  className="admin-input-search"
+                  style={{
+                    flex: '1 1 240px',
+                    minWidth: '200px',
+                    background: '#FFFFFF',
+                    border: '1px solid var(--admin-border)',
+                  }}
+                />
+
+                <select
+                  value={upgradePlan}
+                  onChange={(e) => setUpgradePlan(e.target.value as any)}
+                  className="admin-select"
+                  style={{ flex: '0 0 auto', minWidth: '180px' }}
+                >
+                  <option value="trial">Free Trial (1 Crs)</option>
+                  <option value="plus">Plus (5 Crs)</option>
+                  <option value="pro">Pro (10 Crs)</option>
+                  <option value="campus">Campus (25 Crs)</option>
+                </select>
+
+                <button
+                  type="submit"
+                  disabled={isUpgradingEmail}
+                  className="admin-btn-primary"
+                  style={{
+                    background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                    borderColor: '#059669',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  {isUpgradingEmail ? (
+                    <>
+                      <RefreshCw size={14} className="admin-spin" /> Upgrading...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={14} /> Upgrade Plan
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+
             <div className="admin-control-bar">
               <div className="admin-search-wrap">
                 <Search className="admin-search-icon" size={17} />
                 <input
                   type="text"
-                  placeholder="Search students by name or email..."
+                  placeholder="Search students..."
                   className="admin-input-search"
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
@@ -647,9 +821,10 @@ export default function AdminPortal() {
                   onChange={(e) => setUserPlanFilter(e.target.value)}
                 >
                   <option value="all">All Plans</option>
-                  <option value="free">Free Tier</option>
-                  <option value="pro">Pro Tier</option>
-                  <option value="campus">Campus Tier</option>
+                  <option value="trial">Free Trial</option>
+                  <option value="plus">Plus</option>
+                  <option value="pro">Pro</option>
+                  <option value="campus">Campus</option>
                 </select>
 
                 <select
@@ -659,15 +834,16 @@ export default function AdminPortal() {
                   onChange={(e) => setUserStatusFilter(e.target.value)}
                 >
                   <option value="all">All Statuses</option>
-                  <option value="active">Active Only</option>
-                  <option value="blocked">Suspended Only</option>
+                  <option value="active">Active</option>
+                  <option value="blocked">Suspended</option>
                 </select>
 
                 <button
+                  type="button"
                   onClick={() => fetchUsers(1)}
                   className="admin-btn-secondary"
                 >
-                  Apply Filters
+                  Apply
                 </button>
               </div>
             </div>
@@ -676,11 +852,12 @@ export default function AdminPortal() {
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Student Name & Email</th>
-                    <th>Plan Management</th>
-                    <th>Courses</th>
-                    <th>Chat Msgs</th>
-                    <th>AI Mode</th>
+                    <th>Student</th>
+                    <th>Plan</th>
+                    <th>Courses & Files</th>
+                    <th>System AI</th>
+                    <th>WhatsApp</th>
+                    <th>Emails</th>
                     <th>Status</th>
                     <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
@@ -688,79 +865,177 @@ export default function AdminPortal() {
                 <tbody>
                   {usersList.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#94A3B8' }}>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94A3B8' }}>
                         No students found matching your criteria.
                       </td>
                     </tr>
                   ) : (
-                    usersList.map((u) => (
-                      <tr key={u.id}>
-                        <td>
-                          <div className="admin-user-cell">
-                            <div className="admin-user-avatar">
-                              {u.fullName?.[0]?.toUpperCase() || 'S'}
+                    usersList.map((u) => {
+                      const normPlan = u.plan === 'free' ? 'trial' : (u.plan || 'trial');
+                      const maxCourses = normPlan === 'pro' ? 10 : normPlan === 'plus' ? 5 : normPlan === 'campus' ? 25 : 1;
+                      const maxMB = normPlan === 'pro' ? 150 : normPlan === 'plus' ? 50 : normPlan === 'campus' ? 500 : 10;
+                      const courseCount = u.coursesCount || 0;
+                      const uploadMB = u.uploads?.totalMB || 0;
+                      const uploadFiles = u.uploads?.filesCount || 0;
+                      const systemUsed = u.systemAiUsage?.used || 0;
+                      const isByok = Boolean(u.systemAiUsage?.isByok || u.aiProviderPreference === 'byok');
+
+                      return (
+                        <tr key={u.id}>
+                          {/* 1. Student Name & Email */}
+                          <td>
+                            <div className="admin-user-cell">
+                              <div className="admin-user-avatar">
+                                {u.fullName?.[0]?.toUpperCase() || 'S'}
+                              </div>
+                              <div className="admin-user-info">
+                                <h4>{u.fullName}</h4>
+                                <p>{u.email}</p>
+                                {u.university && (
+                                  <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                                    {u.university} {u.major ? `• ${u.major}` : ''}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="admin-user-info">
-                              <h4>{u.fullName}</h4>
-                              <p>{u.email}</p>
-                              {u.university && (
-                                <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
-                                  {u.university} {u.major ? `• ${u.major}` : ''}
+                          </td>
+
+                          {/* 2. Plan Management Dropdown */}
+                          <td>
+                            <select
+                              aria-label={`Change billing plan for ${u.fullName}`}
+                              className="admin-select"
+                              style={{ fontSize: '0.78rem', padding: '6px 8px' }}
+                              value={normPlan}
+                              disabled={actionLoadingId === u.id}
+                              onChange={(e) => handlePlanChange(u.id, e.target.value)}
+                            >
+                              <option value="trial">Free Trial (1 Crs • 10MB)</option>
+                              <option value="plus">StudySync Plus (5 Crs • 50MB)</option>
+                              <option value="pro">StudySync Pro (10 Crs • 150MB)</option>
+                              <option value="campus">Campus Enterprise (25 Crs • 500MB)</option>
+                            </select>
+                          </td>
+
+                          {/* 3. Courses & Uploads */}
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: courseCount >= maxCourses ? '#DC2626' : '#0F172A' }}>
+                                  {courseCount} / {maxCourses} Crs
                                 </span>
-                              )}
+                                {courseCount >= maxCourses && (
+                                  <span style={{ fontSize: '0.62rem', background: '#FEE2E2', color: '#991B1B', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                                    MAX
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span className="telemetry-chip storage-ok" title={`${uploadFiles} files uploaded`}>
+                                  <HardDrive size={11} /> {uploadMB} / {maxMB} MB
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td>
-                          <select
-                            aria-label={`Change billing plan for ${u.fullName}`}
-                            className="admin-select"
-                            value={u.plan || 'free'}
-                            disabled={actionLoadingId === u.id}
-                            onChange={(e) => handlePlanChange(u.id, e.target.value as any)}
-                          >
-                            <option value="free">Free</option>
-                            <option value="pro">Pro ($9/mo)</option>
-                            <option value="campus">Campus</option>
-                          </select>
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 600 }}>{u.coursesCount || 0}</span>
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 600 }}>{u.chatMessagesCount || 0}</span>
-                        </td>
-                        <td>
-                          <span className={`admin-pill ${u.aiProviderPreference === 'byok' ? 'plan-campus' : 'plan-pro'}`}>
-                            {u.aiProviderPreference === 'byok' ? `BYOK (${u.activeByokProvider || 'Custom'})` : 'System Key'}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`admin-pill ${u.isBlocked ? 'status-blocked' : 'status-active'}`}>
-                            {u.isBlocked ? 'Suspended' : 'Active'}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button
-                            onClick={() => handleToggleUserBlock(u.id, !!u.isBlocked)}
-                            disabled={actionLoadingId === u.id}
-                            className={`admin-btn-action ${u.isBlocked ? 'reactivate' : 'suspend'}`}
-                          >
-                            {u.isBlocked ? (
-                              <>
-                                <UserCheck size={14} />
-                                Reactivate
-                              </>
+                          </td>
+
+                          {/* 4. System AI Quota */}
+                          <td>
+                            {isByok ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span className="telemetry-chip ai-byok">
+                                  <Key size={11} /> BYOK Active
+                                </span>
+                                <span style={{ fontSize: '0.7rem', color: '#15803D', fontWeight: 600 }}>
+                                  {u.systemAiUsage?.provider || u.activeByokProvider || 'Groq / Gemini'}
+                                </span>
+                              </div>
                             ) : (
-                              <>
-                                <UserX size={14} />
-                                Suspend
-                              </>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                {systemUsed >= 3 ? (
+                                  <span className="telemetry-chip ai-quota-blocked" title="Limit reached: User must provide personal API key">
+                                    <Zap size={11} /> 3/3 Limit Reached
+                                  </span>
+                                ) : (
+                                  <span className={systemUsed > 0 ? "telemetry-chip ai-quota-warning" : "telemetry-chip ai-quota-ok"}>
+                                    <Zap size={11} /> {systemUsed} / 3 Used ({3 - systemUsed} left)
+                                  </span>
+                                )}
+                                <span style={{ fontSize: '0.7rem', color: '#64748B' }}>
+                                  Server AI Pool
+                                </span>
+                              </div>
                             )}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+
+                          {/* 5. WhatsApp Integration */}
+                          <td>
+                            {u.whatsapp?.isIntegrated || u.whatsappNumber ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span className="telemetry-chip wa-linked">
+                                  <MessageSquare size={11} /> Linked
+                                </span>
+                                <span style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>
+                                  {u.whatsapp?.messagesSent || 0} msgs sent
+                                </span>
+                                <span style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                                  {u.whatsapp?.number || u.whatsappNumber}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="telemetry-chip wa-none">
+                                Not Linked
+                              </span>
+                            )}
+                          </td>
+
+                          {/* 6. Emails Sent */}
+                          <td>
+                            <span className="telemetry-chip email-chip" title="Total notification and reminder emails sent">
+                              <Mail size={11} /> {u.emails?.sentCount || 0} sent
+                            </span>
+                          </td>
+
+                          {/* 7. Status */}
+                          <td>
+                            <span className={`admin-pill ${u.isBlocked ? 'status-blocked' : 'status-active'}`}>
+                              {u.isBlocked ? 'Suspended' : 'Active'}
+                            </span>
+                          </td>
+
+                          {/* 8. Actions */}
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                onClick={() => setSelectedUserForModal(u)}
+                                className="admin-btn-secondary"
+                                style={{ padding: '6px 9px', fontSize: '0.75rem', gap: '4px' }}
+                                title="View 360° telemetry details"
+                              >
+                                <Eye size={13} />
+                                360°
+                              </button>
+                              <button
+                                onClick={() => handleToggleUserBlock(u.id, !!u.isBlocked)}
+                                disabled={actionLoadingId === u.id}
+                                className={`admin-btn-action ${u.isBlocked ? 'reactivate' : 'suspend'}`}
+                              >
+                                {u.isBlocked ? (
+                                  <>
+                                    <UserCheck size={13} />
+                                    Reactivate
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserX size={13} />
+                                    Suspend
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -778,7 +1053,7 @@ export default function AdminPortal() {
                   >
                     Previous
                   </button>
-                  <span style={{ padding: '6px 12px', fontSize: '0.8rem', color: '#FFFFFF' }}>
+                  <span style={{ padding: '6px 12px', fontSize: '0.8rem', color: '#475569' }}>
                     Page {usersPagination.page} of {usersPagination.totalPages}
                   </span>
                   <button
@@ -791,6 +1066,194 @@ export default function AdminPortal() {
                 </div>
               </div>
             </div>
+
+            {/* ─── 360° User Telemetry Modal ─── */}
+            {selectedUserForModal && (
+              <div className="admin-modal-overlay" onClick={() => setSelectedUserForModal(null)}>
+                <div className="admin-modal-box" onClick={(e) => e.stopPropagation()}>
+                  <div className="admin-modal-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div className="admin-user-avatar" style={{ width: '42px', height: '42px', fontSize: '1.1rem' }}>
+                        {selectedUserForModal.fullName?.[0]?.toUpperCase() || 'S'}
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#0F172A', fontWeight: 800 }}>
+                          {selectedUserForModal.fullName}
+                        </h3>
+                        <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748B' }}>
+                          {selectedUserForModal.email} • Plan: <strong style={{ color: '#4F46E5', textTransform: 'uppercase' }}>{selectedUserForModal.plan}</strong>
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedUserForModal(null)}
+                      className="admin-btn-icon-close"
+                      title="Close modal"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  <div className="admin-modal-body">
+                    {/* 4 Cards Overview in Grid */}
+                    <div className="admin-modal-grid">
+                      {/* Card 1: System AI & BYOK */}
+                      <div className="admin-modal-metric-card">
+                        <div className="card-head">
+                          <span>System AI Usage</span>
+                          <Zap size={16} style={{ color: selectedUserForModal.systemAiUsage?.isByok ? '#16A34A' : '#D97706' }} />
+                        </div>
+                        <div className="card-val">
+                          {selectedUserForModal.systemAiUsage?.isByok ? (
+                            <span style={{ color: '#16A34A', fontSize: '1.1rem' }}>BYOK Active</span>
+                          ) : (
+                            `${selectedUserForModal.systemAiUsage?.used || 0} / 3 Msgs`
+                          )}
+                        </div>
+                        <div className="card-desc">
+                          {selectedUserForModal.systemAiUsage?.isByok ? (
+                            `Using custom BYOK key (${selectedUserForModal.systemAiUsage?.provider || selectedUserForModal.activeByokProvider || 'Active'}). Unlimited queries at $0 cost to server.`
+                          ) : (selectedUserForModal.systemAiUsage?.used || 0) >= 3 ? (
+                            <strong style={{ color: '#DC2626' }}>Quota Exhausted (3/3). Chatbot prompts student to attach their personal Gemini/Groq key.</strong>
+                          ) : (
+                            `Server pool active. ${3 - (selectedUserForModal.systemAiUsage?.used || 0)} free trial system messages left.`
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card 2: Uploads & Storage */}
+                      <div className="admin-modal-metric-card">
+                        <div className="card-head">
+                          <span>Total Uploads</span>
+                          <HardDrive size={16} style={{ color: '#4F46E5' }} />
+                        </div>
+                        <div className="card-val">
+                          {selectedUserForModal.uploads?.totalMB || 0} <span style={{ fontSize: '0.9rem' }}>MB</span>
+                        </div>
+                        <div className="card-desc">
+                          {selectedUserForModal.uploads?.filesCount || 0} files uploaded across courses.
+                          Plan storage limit: {
+                            selectedUserForModal.plan === 'pro' ? '150 MB' :
+                            selectedUserForModal.plan === 'plus' ? '50 MB' :
+                            selectedUserForModal.plan === 'campus' ? '500 MB' : '10 MB'
+                          }.
+                        </div>
+                      </div>
+
+                      {/* Card 3: WhatsApp Automation */}
+                      <div className="admin-modal-metric-card">
+                        <div className="card-head">
+                          <span>WhatsApp Status</span>
+                          <MessageSquare size={16} style={{ color: selectedUserForModal.whatsapp?.isIntegrated ? '#16A34A' : '#94A3B8' }} />
+                        </div>
+                        <div className="card-val">
+                          {selectedUserForModal.whatsapp?.messagesSent || 0} <span style={{ fontSize: '0.9rem' }}>Msgs</span>
+                        </div>
+                        <div className="card-desc">
+                          {selectedUserForModal.whatsapp?.isIntegrated || selectedUserForModal.whatsappNumber ? (
+                            `Linked: ${selectedUserForModal.whatsapp?.number || selectedUserForModal.whatsappNumber}. Receiving automated reminders.`
+                          ) : (
+                            'WhatsApp is not connected or linked for this student.'
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card 4: Email Communications */}
+                      <div className="admin-modal-metric-card">
+                        <div className="card-head">
+                          <span>Emails Sent</span>
+                          <Mail size={16} style={{ color: '#0284C7' }} />
+                        </div>
+                        <div className="card-val">
+                          {selectedUserForModal.emails?.sentCount || 0} <span style={{ fontSize: '0.9rem' }}>Sent</span>
+                        </div>
+                        <div className="card-desc">
+                          Total study digest, deadline reminders, and upgrade confirmation emails dispatched.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Course & Activity Summary */}
+                    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
+                      <h4 style={{ margin: '0 0 10px', fontSize: '0.85rem', color: '#0F172A', fontWeight: 700 }}>
+                        Student Activity & Academic Overview
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Courses Created</span>
+                          <p style={{ margin: '2px 0 0', fontWeight: 700, fontSize: '0.95rem', color: '#0F172A' }}>
+                            {selectedUserForModal.coursesCount || 0} / {
+                              selectedUserForModal.plan === 'pro' ? 10 :
+                              selectedUserForModal.plan === 'plus' ? 5 :
+                              selectedUserForModal.plan === 'campus' ? 25 : 1
+                            }
+                          </p>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Tasks Generated</span>
+                          <p style={{ margin: '2px 0 0', fontWeight: 700, fontSize: '0.95rem', color: '#0F172A' }}>
+                            {selectedUserForModal.tasksCount || 0}
+                          </p>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Chat Queries</span>
+                          <p style={{ margin: '2px 0 0', fontWeight: 700, fontSize: '0.95rem', color: '#0F172A' }}>
+                            {selectedUserForModal.chatMessagesCount || 0}
+                          </p>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Account Status</span>
+                          <p style={{ margin: '2px 0 0' }}>
+                            <span className={`admin-pill ${selectedUserForModal.isBlocked ? 'status-blocked' : 'status-active'}`}>
+                              {selectedUserForModal.isBlocked ? 'Suspended' : 'Active'}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Admin Actions inside Modal */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', borderTop: '1px solid #E2E8F0', paddingTop: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#334155' }}>Change Plan:</span>
+                        <select
+                          className="admin-select"
+                          style={{ fontSize: '0.8rem', padding: '6px 10px' }}
+                          value={selectedUserForModal.plan === 'free' ? 'trial' : (selectedUserForModal.plan || 'trial')}
+                          onChange={(e) => {
+                            handlePlanChange(selectedUserForModal.id, e.target.value);
+                            setSelectedUserForModal((prev: any) => ({ ...prev, plan: e.target.value }));
+                          }}
+                        >
+                          <option value="trial">Free Trial (1 Crs • 10MB)</option>
+                          <option value="plus">StudySync Plus (5 Crs • 50MB)</option>
+                          <option value="pro">StudySync Pro (10 Crs • 150MB)</option>
+                          <option value="campus">Campus Enterprise (25 Crs • 500MB)</option>
+                        </select>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          handleToggleUserBlock(selectedUserForModal.id, !!selectedUserForModal.isBlocked);
+                          setSelectedUserForModal((prev: any) => ({ ...prev, isBlocked: !prev.isBlocked }));
+                        }}
+                        className={`admin-btn-action ${selectedUserForModal.isBlocked ? 'reactivate' : 'suspend'}`}
+                      >
+                        {selectedUserForModal.isBlocked ? (
+                          <>
+                            <UserCheck size={14} /> Reactivate Account
+                          </>
+                        ) : (
+                          <>
+                            <UserX size={14} /> Suspend Account
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -859,14 +1322,14 @@ export default function AdminPortal() {
                             <span style={{ fontWeight: 700, color: '#38BDF8', fontSize: '0.85rem' }}>
                               {c.code}
                             </span>
-                            <h4 style={{ margin: '2px 0 0', fontSize: '0.88rem', color: '#FFFFFF' }}>
+                            <h4 style={{ margin: '2px 0 0', fontSize: '0.88rem', color: '#0F172A' }}>
                               {c.title}
                             </h4>
                           </div>
                         </td>
                         <td>
                           <div>
-                            <span style={{ color: '#FFFFFF' }}>{c.instructor || 'Not specified'}</span>
+                            <span style={{ color: '#0F172A' }}>{c.instructor || 'Not specified'}</span>
                             <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#94A3B8' }}>
                               Owner: {c.user?.fullName || c.user?.email || 'Student'}
                             </p>
@@ -925,7 +1388,7 @@ export default function AdminPortal() {
                   >
                     Previous
                   </button>
-                  <span style={{ padding: '6px 12px', fontSize: '0.8rem', color: '#FFFFFF' }}>
+                  <span style={{ padding: '6px 12px', fontSize: '0.8rem', color: '#475569' }}>
                     Page {coursesPagination.page} of {coursesPagination.totalPages}
                   </span>
                   <button
@@ -973,81 +1436,105 @@ export default function AdminPortal() {
             )}
 
             <div className="admin-card-section">
-              <h3>AI Consumption & BYOK Keys</h3>
-              <p className="sub">Platform token quota enforcement and custom key distribution</p>
+              <h3>AI Quotas</h3>
 
-              <div className="admin-grid-2">
+              <div className="admin-grid-2" style={{ marginTop: '16px' }}>
                 <div className="admin-quota-tier">
                   <h4>
-                    <span>Free Student Tier</span>
-                    <span className="admin-pill plan-free">Default</span>
+                    <span>Free / Trial</span>
+                    <span className="admin-pill plan-free">Rs. 0</span>
                   </h4>
                   <ul className="admin-quota-list">
                     <li>
-                      <span>Monthly Token Quota:</span>
-                      <span>50,000 tokens / mo</span>
-                    </li>
-                    <li>
-                      <span>Active AI Model:</span>
-                      <span>Gemini 2.5 Flash (System Key)</span>
+                      <span>System AI Pool:</span>
+                      <span>3 Free Messages</span>
                     </li>
                     <li>
                       <span>Allowed Courses:</span>
-                      <span>3 courses maximum</span>
+                      <span>1 course max</span>
+                    </li>
+                    <li>
+                      <span>Material Uploads:</span>
+                      <span>10 MB max</span>
                     </li>
                     <li>
                       <span>BYOK Custom Keys:</span>
-                      <span style={{ color: '#EF4444' }}>Not supported</span>
+                      <span style={{ color: '#10B981' }}>Gemini / Groq</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="admin-quota-tier" style={{ borderColor: 'rgba(59,130,246,0.4)' }}>
+                  <h4>
+                    <span>Plus</span>
+                    <span className="admin-pill" style={{ background: '#DBEAFE', color: '#1E40AF' }}>Rs. 1,000 / mo</span>
+                  </h4>
+                  <ul className="admin-quota-list">
+                    <li>
+                      <span>Allowed Courses:</span>
+                      <span>5 courses max</span>
+                    </li>
+                    <li>
+                      <span>Material Uploads:</span>
+                      <span>50 MB max</span>
+                    </li>
+                    <li>
+                      <span>WhatsApp Alerts:</span>
+                      <span>Automated Baileys</span>
+                    </li>
+                    <li>
+                      <span>BYOK Custom Keys:</span>
+                      <span style={{ color: '#10B981' }}>Unlimited Chat</span>
                     </li>
                   </ul>
                 </div>
 
                 <div className="admin-quota-tier" style={{ borderColor: 'rgba(99,102,241,0.4)' }}>
                   <h4>
-                    <span>Pro Tier ($9/month)</span>
-                    <span className="admin-pill plan-pro">Pro</span>
+                    <span>Pro</span>
+                    <span className="admin-pill plan-pro">Rs. 2,000 / mo</span>
                   </h4>
                   <ul className="admin-quota-list">
                     <li>
-                      <span>Monthly Token Quota:</span>
-                      <span>500,000 tokens / mo</span>
-                    </li>
-                    <li>
-                      <span>Active AI Models:</span>
-                      <span>Gemini 2.5 Pro + Groq Llama 3.3</span>
-                    </li>
-                    <li>
                       <span>Allowed Courses:</span>
-                      <span>15 courses</span>
+                      <span>10 courses (Extra: Rs. 100)</span>
                     </li>
                     <li>
-                      <span>BYOK Custom Keys:</span>
-                      <span style={{ color: '#10B981' }}>Supported</span>
+                      <span>Material Uploads:</span>
+                      <span>150 MB max</span>
+                    </li>
+                    <li>
+                      <span>BYOK Multi-Model:</span>
+                      <span style={{ color: '#10B981' }}>Gemini, Groq, OpenAI</span>
+                    </li>
+                    <li>
+                      <span>WhatsApp Bot:</span>
+                      <span>Full Baileys Bot</span>
                     </li>
                   </ul>
                 </div>
 
                 <div className="admin-quota-tier" style={{ borderColor: 'rgba(245,158,11,0.4)' }}>
                   <h4>
-                    <span>Campus Enterprise Tier</span>
-                    <span className="admin-pill plan-campus">Campus</span>
+                    <span>Campus</span>
+                    <span className="admin-pill plan-campus">Rs. 4,500 / mo</span>
                   </h4>
                   <ul className="admin-quota-list">
                     <li>
-                      <span>Monthly Token Quota:</span>
-                      <span>Unlimited High-Speed</span>
-                    </li>
-                    <li>
-                      <span>Active AI Models:</span>
-                      <span>All Models + Web Search RAG</span>
-                    </li>
-                    <li>
                       <span>Allowed Courses:</span>
-                      <span>Unlimited</span>
+                      <span>25 courses (Extra: Rs. 100)</span>
+                    </li>
+                    <li>
+                      <span>Material Uploads:</span>
+                      <span>200 MB max</span>
+                    </li>
+                    <li>
+                      <span>Capacity:</span>
+                      <span>Department / Batch</span>
                     </li>
                     <li>
                       <span>BYOK Custom Keys:</span>
-                      <span style={{ color: '#10B981' }}>OpenAI / Groq / Gemini</span>
+                      <span style={{ color: '#10B981' }}>Supported</span>
                     </li>
                   </ul>
                 </div>
@@ -1059,18 +1546,15 @@ export default function AdminPortal() {
         {/* ─── TAB 5: SECURITY & CREDENTIALS ───────────────────────────── */}
         {activeTab === 'security' && (
           <div className="animate-fadeIn">
-            <div className="admin-card-section" style={{ maxWidth: '600px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <div className="admin-card-section" style={{ maxWidth: '520px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                 <KeyRound size={20} style={{ color: '#F59E0B' }} />
-                <h3 style={{ margin: 0 }}>Update Administrator Password</h3>
+                <h3 style={{ margin: 0 }}>Update Password</h3>
               </div>
-              <p className="sub">
-                Safely re-hash and update your administrative master credentials.
-              </p>
 
               <form onSubmit={handleChangeAdminPassword}>
                 <div className="admin-form-group">
-                  <label className="admin-form-label" htmlFor="current-pass">Current Master Password</label>
+                  <label className="admin-form-label" htmlFor="current-pass">Current Password</label>
                   <input
                     id="current-pass"
                     type="password"
@@ -1084,7 +1568,7 @@ export default function AdminPortal() {
                 </div>
 
                 <div className="admin-form-group">
-                  <label className="admin-form-label" htmlFor="new-pass">New Master Password</label>
+                  <label className="admin-form-label" htmlFor="new-pass">New Password</label>
                   <input
                     id="new-pass"
                     type="password"
@@ -1098,7 +1582,7 @@ export default function AdminPortal() {
                 </div>
 
                 <div className="admin-form-group">
-                  <label className="admin-form-label" htmlFor="confirm-pass">Confirm New Master Password</label>
+                  <label className="admin-form-label" htmlFor="confirm-pass">Confirm Password</label>
                   <input
                     id="confirm-pass"
                     type="password"
@@ -1118,13 +1602,14 @@ export default function AdminPortal() {
                   disabled={changingPass}
                 >
                   <Lock size={16} />
-                  {changingPass ? 'Updating Master Password...' : 'Save New Master Password'}
+                  {changingPass ? 'Updating...' : 'Save Password'}
                 </button>
               </form>
             </div>
           </div>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

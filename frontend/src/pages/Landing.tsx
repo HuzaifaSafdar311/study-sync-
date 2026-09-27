@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSEO } from '../hooks/useSEO';
 import { Link } from 'react-router-dom';
 import PublicHeader from '../components/PublicHeader';
 import PublicFooter from '../components/PublicFooter';
@@ -19,14 +20,45 @@ import {
   CheckSquare,
   Camera,
   Minimize2,
-  Star,
   X,
-  Send,
   FileCheck,
 } from 'lucide-react';
 
 export default function Landing() {
+  useSEO({
+    title: 'StudySync AI — Intelligent Academic Platform for University Students',
+    description:
+      'StudySync AI is the autonomous academic operating system. Upload lecture slides, get verified slide citations, and receive proactive WhatsApp and email deadline alerts. Zero subscriptions required.',
+    canonical: 'https://studysync.ai/',
+  });
+
   const [demoModalOpen, setDemoModalOpen] = useState(false);
+
+  // Scroll reveal observer for smooth scroll-triggered animations
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+          }
+        });
+      },
+      {
+        root: null,
+        rootMargin: '0px 0px -40px 0px',
+        threshold: 0.08,
+      }
+    );
+
+    const revealElements = document.querySelectorAll('.ss-reveal');
+    revealElements.forEach((el) => observer.observe(el));
+
+    return () => {
+      revealElements.forEach((el) => observer.unobserve(el));
+      observer.disconnect();
+    };
+  }, []);
 
   return (
     <div className="ss-landing-page ss-light-landing">
@@ -41,10 +73,8 @@ export default function Landing() {
       <section id="hero" className="ss-ref-hero-section">
         <div className="ss-ref-hero-grid">
           {/* Left Column: Heading, Subtitle, CTAs, Checks */}
-          <div className="ss-ref-hero-left">
-            <div className="ss-ref-badge">
-              <span>AI-Powered Study Assistant</span>
-            </div>
+          <div className="ss-ref-hero-left ss-reveal">
+
 
             <h1 className="ss-ref-hero-title">
               Your Study Life, <br />
@@ -91,7 +121,7 @@ export default function Landing() {
           </div>
 
           {/* Right Column: Realistic Floating Dashboard Mockup */}
-          <div className="ss-ref-mockup-wrap">
+          <div className="ss-ref-mockup-wrap ss-reveal ss-delay-1">
             {/* Playful Top-Right Sparkle Rays SVG */}
             <svg
               className="ss-ref-sparkle-rays"
@@ -160,7 +190,7 @@ export default function Landing() {
                 {/* Main Dashboard Area */}
                 <div className="ss-ref-main-dash">
                   <div>
-                    <h3 className="ss-ref-dash-greeting">Good Morning, Arham 👋</h3>
+                    <h3 className="ss-ref-dash-greeting">Good Morning,User 👋</h3>
                     <p className="ss-ref-dash-subgreeting">Keep going, your goals are within reach.</p>
                   </div>
 
@@ -264,27 +294,13 @@ export default function Landing() {
                   </div>
                 </div>
               </div>
-
-              {/* Floating AI Assistant pill on bottom-left (Exactly like user screenshot) */}
-              <div className="ss-ref-floating-ai">
-                <div className="ss-ref-ai-icon">
-                  <Bot size={20} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h5 className="ss-ref-ai-title">AI Assistant</h5>
-                  <p className="ss-ref-ai-desc">Ask me anything about your notes, PDFs or lectures...</p>
-                </div>
-                <Link to="/register" className="ss-ref-ai-send" title="Try AI Copilot">
-                  <Send size={13} />
-                </Link>
-              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ─── Powerful Features (Exact 5 Cards Matching Reference) ────────── */}
-      <section id="features" className="ss-ref-features-section">
+      <section id="features" className="ss-ref-features-section ss-reveal">
         <div className="ss-edu-container">
           <div className="ss-ref-section-tag">Powerful Features</div>
           <h2 className="ss-ref-section-title">Everything You Need to Stay Ahead</h2>
@@ -294,7 +310,7 @@ export default function Landing() {
 
           <div className="ss-ref-5cards-grid">
             {/* Card 1: Notes & PDFs */}
-            <div className="ss-ref-card-item">
+            <div className="ss-ref-card-item ss-reveal ss-delay-1">
               <div className="ss-ref-card-icon" style={{ background: '#EFF6FF', color: '#2563EB' }}>
                 <FileText size={24} />
               </div>
@@ -305,7 +321,7 @@ export default function Landing() {
             </div>
 
             {/* Card 2: AI Chatbot */}
-            <div className="ss-ref-card-item">
+            <div className="ss-ref-card-item ss-reveal ss-delay-2">
               <div className="ss-ref-card-icon" style={{ background: '#E0F2FE', color: '#0284C7' }}>
                 <Bot size={24} />
               </div>
@@ -316,7 +332,7 @@ export default function Landing() {
             </div>
 
             {/* Card 3: Lecture Understanding */}
-            <div className="ss-ref-card-item">
+            <div className="ss-ref-card-item ss-reveal ss-delay-3">
               <div className="ss-ref-card-icon" style={{ background: '#F3E8FF', color: '#7C3AED' }}>
                 <Video size={24} />
               </div>
@@ -327,7 +343,7 @@ export default function Landing() {
             </div>
 
             {/* Card 4: Smart Reminders */}
-            <div className="ss-ref-card-item">
+            <div className="ss-ref-card-item ss-reveal ss-delay-4">
               <div className="ss-ref-card-icon" style={{ background: '#FCE7F3', color: '#DB2777' }}>
                 <Bell size={24} />
               </div>
@@ -338,7 +354,7 @@ export default function Landing() {
             </div>
 
             {/* Card 5: Quiz & Assignment */}
-            <div className="ss-ref-card-item">
+            <div className="ss-ref-card-item ss-reveal ss-delay-5">
               <div className="ss-ref-card-icon" style={{ background: '#E0F2FE', color: '#0284C7' }}>
                 <CheckSquare size={24} />
               </div>
@@ -351,23 +367,28 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ─── Free Document Utility Studio Spotlight ──────────────────────── */}
-      <section className="ss-tools-spotlight-section">
+      {/* ─── Subscription Document Utility Suite Spotlight ──────────────────────── */}
+      <section className="ss-tools-spotlight-section ss-reveal">
         <div className="ss-edu-container">
-          <div className="ss-edu-section-header">
-            <div className="ss-edu-section-tag">BUILT-IN UTILITY STUDIO</div>
-            <h2 className="ss-edu-section-title">All Your Academic Document Tools. Zero Subscriptions.</h2>
+          <div className="ss-edu-section-header ss-reveal">
+            <div className="ss-edu-section-tag">INCLUDED IN YOUR SUBSCRIPTION</div>
+            <h2 className="ss-edu-section-title">All Your Academic Document Tools. One Unified Subscription.</h2>
             <p className="ss-edu-section-subtitle">
-              Say goodbye to expensive third-party tools and watermarked downloads. Scan paper notes, convert slides, and compress large submissions directly inside StudySync.
+              Replace costly individual software licenses. HD paper scanning, universal file conversion, and lossless PDF compression are bundled directly into your StudySync subscription plan.
             </p>
           </div>
 
           <div className="ss-tools-spotlight-grid">
             {/* Spotlight 1: CamScanner */}
-            <div className="ss-spotlight-card">
+            <div className="ss-spotlight-card ss-reveal ss-delay-1">
               <div>
-                <div className="ss-spotlight-icon" style={{ background: '#EFF6FF', color: '#2563EB' }}>
-                  <Camera size={28} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+                  <div className="ss-spotlight-icon" style={{ background: '#EFF6FF', color: '#2563EB', marginBottom: 0 }}>
+                    <Camera size={28} />
+                  </div>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#2563EB', background: '#EFF6FF', padding: '4px 10px', borderRadius: '9999px', border: '1px solid #DBEAFE', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Plan Feature
+                  </span>
                 </div>
                 <h3 className="ss-spotlight-title">HD CamScanner Studio</h3>
                 <p className="ss-spotlight-desc">
@@ -381,10 +402,15 @@ export default function Landing() {
             </div>
 
             {/* Spotlight 2: Universal Converter */}
-            <div className="ss-spotlight-card">
+            <div className="ss-spotlight-card ss-reveal ss-delay-2">
               <div>
-                <div className="ss-spotlight-icon" style={{ background: '#ECFDF5', color: '#059669' }}>
-                  <FileCheck size={28} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+                  <div className="ss-spotlight-icon" style={{ background: '#ECFDF5', color: '#059669', marginBottom: 0 }}>
+                    <FileCheck size={28} />
+                  </div>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#059669', background: '#ECFDF5', padding: '4px 10px', borderRadius: '9999px', border: '1px solid #A7F3D0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Plan Feature
+                  </span>
                 </div>
                 <h3 className="ss-spotlight-title">Universal Document Converter</h3>
                 <p className="ss-spotlight-desc">
@@ -398,10 +424,15 @@ export default function Landing() {
             </div>
 
             {/* Spotlight 3: PDF Compressor */}
-            <div className="ss-spotlight-card">
+            <div className="ss-spotlight-card ss-reveal ss-delay-3">
               <div>
-                <div className="ss-spotlight-icon" style={{ background: '#FEF3C7', color: '#D97706' }}>
-                  <Minimize2 size={28} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+                  <div className="ss-spotlight-icon" style={{ background: '#FEF3C7', color: '#D97706', marginBottom: 0 }}>
+                    <Minimize2 size={28} />
+                  </div>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '4px 10px', borderRadius: '9999px', border: '1px solid #FDE68A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Plan Feature
+                  </span>
                 </div>
                 <h3 className="ss-spotlight-title">Smart PDF Compressor</h3>
                 <p className="ss-spotlight-desc">
@@ -414,13 +445,31 @@ export default function Landing() {
               </Link>
             </div>
           </div>
+
+          <div style={{ marginTop: '36px', textAlign: 'center' }}>
+            <Link
+              to="/pricing"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.92rem',
+                fontWeight: 600,
+                color: '#2563EB',
+                textDecoration: 'none',
+              }}
+            >
+              <span>Explore all subscription plans & included features</span>
+              <ArrowRight size={16} />
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* ─── 3-Step Student Workflow ────────────────────────────────────── */}
-      <section className="ss-workflow-section">
+      <section className="ss-workflow-section ss-reveal">
         <div className="ss-edu-container">
-          <div className="ss-edu-section-header">
+          <div className="ss-edu-section-header ss-reveal">
             <div className="ss-edu-section-tag">HOW IT WORKS</div>
             <h2 className="ss-edu-section-title">Effortless Academic Mastery in 3 Steps</h2>
             <p className="ss-edu-section-subtitle">
@@ -429,7 +478,7 @@ export default function Landing() {
           </div>
 
           <div className="ss-workflow-steps">
-            <div className="ss-step-card">
+            <div className="ss-step-card ss-reveal ss-delay-1">
               <span className="ss-step-number">STEP 01</span>
               <h3 className="ss-step-title">Upload Course Materials</h3>
               <p className="ss-step-desc">
@@ -437,7 +486,7 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className="ss-step-card">
+            <div className="ss-step-card ss-reveal ss-delay-2">
               <span className="ss-step-number">STEP 02</span>
               <h3 className="ss-step-title">Connect WhatsApp & Calendar</h3>
               <p className="ss-step-desc">
@@ -445,7 +494,7 @@ export default function Landing() {
               </p>
             </div>
 
-            <div className="ss-step-card">
+            <div className="ss-step-card ss-reveal ss-delay-3">
               <span className="ss-step-number">STEP 03</span>
               <h3 className="ss-step-title">Ace Your Exams with Clarity</h3>
               <p className="ss-step-desc">
@@ -456,83 +505,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ─── Student Testimonials ───────────────────────────────────────── */}
-      <section className="ss-testimonials-section">
-        <div className="ss-edu-container">
-          <div className="ss-edu-section-header">
-            <div className="ss-edu-section-tag">COMMUNITY REVIEWS</div>
-            <h2 className="ss-edu-section-title">Loved by Students Across Top Universities</h2>
-            <p className="ss-edu-section-subtitle">
-              Hear from university students who raised their CGPA and eliminated exam panic with StudySync.
-            </p>
-          </div>
-
-          <div className="ss-testimonials-grid">
-            <div className="ss-testimonial-card">
-              <div>
-                <div className="ss-stars-row">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} size={16} fill="#F59E0B" color="#F59E0B" />
-                  ))}
-                </div>
-                <p className="ss-testimonial-quote">
-                  "The slide citation feature is a lifesaver. Before StudySync, ChatGPT would hallucinate formulas that my professor never taught. StudySync quotes the exact slide number from our lectures!"
-                </p>
-              </div>
-              <div className="ss-testimonial-author">
-                <div className="ss-author-avatar">HS</div>
-                <div>
-                  <h4 className="ss-author-name">Huzaifa S.</h4>
-                  <p className="ss-author-role">Computer Science • FAST-NUCES</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="ss-testimonial-card">
-              <div>
-                <div className="ss-stars-row">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} size={16} fill="#F59E0B" color="#F59E0B" />
-                  ))}
-                </div>
-                <p className="ss-testimonial-quote">
-                  "The Roman Urdu WhatsApp reminder feature literally saved me from missing my Operating Systems assignment. I received an alert at 7 PM with the exact submission details!"
-                </p>
-              </div>
-              <div className="ss-testimonial-author">
-                <div className="ss-author-avatar" style={{ background: '#ECFDF5', color: '#059669' }}>AR</div>
-                <div>
-                  <h4 className="ss-author-name">Alina R.</h4>
-                  <p className="ss-author-role">Software Engineering • NUST</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="ss-testimonial-card">
-              <div>
-                <div className="ss-stars-row">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} size={16} fill="#F59E0B" color="#F59E0B" />
-                  ))}
-                </div>
-                <p className="ss-testimonial-quote">
-                  "Having CamScanner and PDF Compressor built into the same platform where I study is brilliant. No more sketchy ad-filled conversion websites right before LMS deadline strikes at 11:59 PM."
-                </p>
-              </div>
-              <div className="ss-testimonial-author">
-                <div className="ss-author-avatar" style={{ background: '#FEF3C7', color: '#D97706' }}>ZK</div>
-                <div>
-                  <h4 className="ss-author-name">Zainab K.</h4>
-                  <p className="ss-author-role">Electrical Engineering • LUMS</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ─── Final High-Converting CTA Banner ──────────────────────────── */}
-      <section className="ss-final-cta-section">
+      <section className="ss-final-cta-section ss-reveal">
         <div className="ss-edu-container">
           <div className="ss-final-cta-card">
             <h2 className="ss-final-cta-title">Ready to Elevate Your Academic Journey?</h2>

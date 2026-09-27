@@ -21,12 +21,10 @@ import Chatbot from './pages/Chatbot';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
 import AdminPortal from './pages/AdminPortal';
-import AdminLogin from './pages/AdminLogin';
 import ToolsHub from './pages/Tools/ToolsHub';
 import Compressor from './pages/Tools/Compressor';
 import CamScanner from './pages/Tools/CamScanner';
 import PdfConverter from './pages/Tools/PdfConverter';
-import PublicCourses from './pages/PublicCourses';
 import Layout from './components/Layout';
 import LogoFillLoader from './components/LogoFillLoader';
 
@@ -268,7 +266,7 @@ function App() {
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/contact" element={<Contact />} />
-          <Route path="/courses" element={<PublicCourses />} />
+          <Route path="/courses" element={<Navigate to="/" replace />} />
 
           {/* Authentication & Account Recovery Routes */}
           <Route
@@ -352,7 +350,7 @@ function App() {
           </Route>
 
           {/* Dedicated High-Security Operations & Admin Portal */}
-          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/login" element={<Navigate to="/login" replace />} />
           <Route path="/admin" element={<AdminPortal />} />
 
           {/* Fallback */}

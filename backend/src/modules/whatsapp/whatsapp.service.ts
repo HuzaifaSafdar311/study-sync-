@@ -17,6 +17,7 @@ import { loadUserSettings, saveUserSettings } from '../../config/database';
 import { whatsAppStateManager } from './whatsapp.state';
 import { whatsAppHandler } from './whatsapp.handler';
 import { whatsAppQueue } from './whatsapp.queue';
+import { userAnalyticsService } from '../admin/userAnalytics.service';
 
 export class WhatsAppService {
   private sock: WASocket | null = null;
@@ -264,6 +265,7 @@ export class WhatsAppService {
    * and automatically sends in sequence when reconnected.
    */
   async sendMessage(to: string, text: string, quotedMsg?: any): Promise<boolean> {
+    userAnalyticsService.recordWhatsAppMessage(to, 'sent');
     const quote = quotedMsg || this.activeIncomingMessage;
     if (!this.sock || !this.isConnected) {
       console.warn(`[WhatsApp] Offline/Disconnected. Buffering message to ${to} into outbound queue.`);

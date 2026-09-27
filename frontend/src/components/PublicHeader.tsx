@@ -9,7 +9,7 @@ export default function PublicHeader() {
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 15);
+      setScrolled(window.scrollY > 25);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll(); // Initial check
@@ -25,8 +25,6 @@ export default function PublicHeader() {
     { name: 'Home', path: '/' },
     { name: 'About Us', path: '/about' },
     { name: 'Features', path: '/features' },
-    { name: 'Courses', path: '/courses' },
-    { name: 'Tools', path: '/tools' },
     { name: 'Pricing', path: '/pricing', hasPulse: true },
     { name: 'Blog', path: '/blog' },
     { name: 'Contact', path: '/contact' },

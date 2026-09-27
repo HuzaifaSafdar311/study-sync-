@@ -10,15 +10,34 @@ import {
   isPresentationFile,
   isSpreadsheetFile,
 } from './documentParser';
+import { getPlanConfig, calculateTrialStatus, buildWhatsAppPurchaseUrl } from '../../config/plans';
+import { systemQuotaService } from '../ai/systemQuota.service';
+import { userAnalyticsService } from '../admin/userAnalytics.service';
 
 const router = Router();
 
 const uploadDocument = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
+  limits: { fileSize: 150 * 1024 * 1024 }, // 150MB maximum for Pro plan
 });
 
 router.use(authGuard);
+
+/**
+ * GET /api/courses/ai-quota
+ * Returns system message usage and BYOK status for the authenticated user
+ */
+router.get('/ai-quota', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const quota = await systemQuotaService.checkSystemQuota(req.userId!);
+    res.status(200).json({
+      success: true,
+      data: quota,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * GET /api/courses
@@ -146,6 +165,47 @@ router.post('/:id/upload', uploadDocument.any(), async (req: AuthRequest, res: R
       return;
     }
 
+    // 1. Verify user's subscription plan and trial status
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: { id: true, email: true, plan: true, createdAt: true },
+    });
+
+    const userPlan = user?.plan || 'trial';
+    const planCfg = getPlanConfig(userPlan);
+    const trialStatus = calculateTrialStatus({
+      createdAt: user?.createdAt,
+      plan: userPlan,
+    });
+
+    if (trialStatus.isTrial && trialStatus.isTrialExpired) {
+      const upgradeUrl = buildWhatsAppPurchaseUrl('plus', 'monthly', user?.email);
+      res.status(403).json({
+        success: false,
+        planLimitReached: true,
+        isTrialExpired: true,
+        message: 'Your 7-day Free Trial has expired. Please upgrade to StudySync Plus or Pro on WhatsApp to upload course materials.',
+        upgradeUrl,
+      });
+      return;
+    }
+
+    // 2. Enforce file size limit based on plan (10MB for Free/Trial, 50MB for Plus, 150MB for Pro)
+    for (const f of uploadedFiles) {
+      if (f.size > planCfg.maxUploadBytes) {
+        const nextPlan = (planCfg.normalizedId === 'trial' || planCfg.normalizedId === 'free') ? 'plus' : 'pro';
+        const upgradeUrl = buildWhatsAppPurchaseUrl(nextPlan as any, 'monthly', user?.email);
+        const actualMB = (f.size / (1024 * 1024)).toFixed(1);
+        res.status(403).json({
+          success: false,
+          planLimitReached: true,
+          message: `File "${f.originalname}" (${actualMB}MB) exceeds the ${planCfg.maxUploadMB}MB upload limit for your ${planCfg.name} plan. Please upgrade on WhatsApp for larger uploads.`,
+          upgradeUrl,
+        });
+        return;
+      }
+    }
+
     if (uploadedFiles.length === 1) {
       const singleFile = uploadedFiles[0];
       const originalName = singleFile.originalname || 'attachment';
@@ -187,6 +247,8 @@ router.post('/:id/upload', uploadDocument.any(), async (req: AuthRequest, res: R
         content: textContent.trim(),
         sourceType,
       });
+
+      userAnalyticsService.recordUpload(req.userId!, originalName, singleFile.size, courseId);
 
       let botMessage = '';
       if (isImg) {
@@ -274,6 +336,7 @@ router.post('/:id/upload', uploadDocument.any(), async (req: AuthRequest, res: R
             content: textContent.trim(),
             sourceType,
           });
+          userAnalyticsService.recordUpload(req.userId!, originalName, f.size, courseId);
           totalChunks += result.chunksIndexed;
           processedFiles.push(originalName);
           const icon = isImg ? '🖼️' : isAudio ? '🎙️' : isPresentation ? '📊' : isSpreadsheet ? '📈' : '📄';
@@ -335,6 +398,25 @@ router.post('/:id/chat', uploadDocument.any(), async (req: AuthRequest, res: Res
       });
       return;
     }
+
+    // System API Quota Check (Max 3 messages on system AI without BYOK key)
+    const quota = await systemQuotaService.checkSystemQuota(req.userId!);
+    if (!quota.allowed) {
+      res.status(403).json({
+        success: false,
+        quotaExceeded: true,
+        requiresApiKey: true,
+        message: 'Aapka free system AI message limit (3/3) poora ho chuka hai. Please continue karne ke liye apni Gemini ya Groq API key enter karein.',
+        systemQuota: {
+          used: quota.count,
+          limit: quota.limit,
+          remaining: 0,
+          isByok: false,
+        },
+      });
+      return;
+    }
+
     let question = (req.body.question || '').trim();
     const enableThink = req.body.think === true || req.body.think === 'true' || req.body.enableThink === true;
 
@@ -384,6 +466,7 @@ router.post('/:id/chat', uploadDocument.any(), async (req: AuthRequest, res: Res
           content: textContent.trim(),
           sourceType,
         });
+        userAnalyticsService.recordUpload(req.userId!, originalName, f.size, courseId);
 
         if (isImg) {
           contextSections.push(`[Attached Image ${i + 1} Analysis (${originalName})]:\n${textContent.trim()}`);
@@ -442,9 +525,28 @@ router.post('/:id/chat', uploadDocument.any(), async (req: AuthRequest, res: Res
       enableThink
     );
 
+    let quotaInfo = quota;
+    if (!quota.isByok) {
+      const inc = systemQuotaService.incrementSystemUsage(req.userId!);
+      quotaInfo = {
+        ...quota,
+        count: inc.count,
+        remaining: inc.remaining,
+      };
+    }
+
     res.status(200).json({
       success: true,
       data: result,
+      systemQuota: !quota.isByok ? {
+        used: quotaInfo.count,
+        limit: quotaInfo.limit,
+        remaining: quotaInfo.remaining,
+        isByok: false,
+      } : {
+        isByok: true,
+        activeProvider: quota.activeProvider,
+      },
     });
   } catch (error) {
     next(error);
