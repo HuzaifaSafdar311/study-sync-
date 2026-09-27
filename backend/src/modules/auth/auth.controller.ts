@@ -4,6 +4,37 @@ import { authService } from './auth.service';
 import { AuthRequest } from '../../middleware/authGuard';
 import { config } from '../../config';
 
+function getEffectiveGoogleRedirectUri(req: Request): string {
+  const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+  const host = (req.get('x-forwarded-host') || req.get('host') || req.headers.host || '').trim();
+  const proto = (req.get('x-forwarded-proto') || (req.secure ? 'https' : (host.includes('localhost') ? 'http' : 'https'))).trim();
+
+  // If running in production (Vercel or non-localhost domain)
+  if (isVercel || (!host.includes('localhost') && !host.includes('127.0.0.1') && host.length > 0)) {
+    if (process.env.GOOGLE_REDIRECT_URI && !process.env.GOOGLE_REDIRECT_URI.includes('localhost')) {
+      return process.env.GOOGLE_REDIRECT_URI.trim();
+    }
+    return `${proto}://${host}/api/auth/google/callback`;
+  }
+
+  return config.google.redirectUri || 'http://localhost:5000/api/auth/google/callback';
+}
+
+function getEffectiveFrontendUrl(req: Request): string {
+  const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+  const host = (req.get('x-forwarded-host') || req.get('host') || req.headers.host || '').trim();
+  const proto = (req.get('x-forwarded-proto') || (req.secure ? 'https' : (host.includes('localhost') ? 'http' : 'https'))).trim();
+
+  if (isVercel || (!host.includes('localhost') && !host.includes('127.0.0.1') && host.length > 0)) {
+    if (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes('localhost')) {
+      return process.env.FRONTEND_URL.trim();
+    }
+    return `${proto}://${host}`;
+  }
+
+  return config.frontendUrl || 'http://localhost:5173';
+}
+
 class AuthController {
   /**
    * POST /api/auth/register
@@ -353,8 +384,9 @@ class AuthController {
   /**
    * GET /api/auth/google/url
    */
-  async googleAuthUrl(_req: Request, res: Response) {
-    const authData = authService.getGoogleAuthUrl();
+  async googleAuthUrl(req: Request, res: Response) {
+    const redirectUri = getEffectiveGoogleRedirectUri(req);
+    const authData = authService.getGoogleAuthUrl(redirectUri);
     res.status(200).json({
       success: true,
       data: authData,
@@ -366,13 +398,12 @@ class AuthController {
    * Direct redirect to Google OAuth consent screen
    */
   async googleRedirect(req: Request, res: Response) {
-    const authData = authService.getGoogleAuthUrl();
+    const redirectUri = getEffectiveGoogleRedirectUri(req);
+    const authData = authService.getGoogleAuthUrl(redirectUri);
     if (authData.isConfigured && authData.url) {
       res.redirect(authData.url);
     } else {
-      const host = req.get('host') || req.headers.host;
-      const isVercel = Boolean(process.env.VERCEL || (host && host.includes('vercel.app')));
-      const frontendUrl = isVercel && host ? `https://${host}` : (process.env.FRONTEND_URL || 'http://localhost:5173');
+      const frontendUrl = getEffectiveFrontendUrl(req);
       res.redirect(`${frontendUrl}/login?google_unconfigured=true`);
     }
   }
@@ -381,9 +412,8 @@ class AuthController {
    * GET /api/auth/google/callback
    */
   async googleCallback(req: Request, res: Response, next: NextFunction) {
-    const host = req.get('host') || req.headers.host;
-    const isVercel = Boolean(process.env.VERCEL || (host && host.includes('vercel.app')));
-    const frontendUrl = isVercel && host ? `https://${host}` : (process.env.FRONTEND_URL || 'http://localhost:5173');
+    const redirectUri = getEffectiveGoogleRedirectUri(req);
+    const frontendUrl = getEffectiveFrontendUrl(req);
     try {
       const { code, error } = req.query;
       if (error) {
@@ -395,7 +425,7 @@ class AuthController {
         return;
       }
 
-      const result = await authService.handleGoogleCallback(code);
+      const result = await authService.handleGoogleCallback(code, redirectUri);
 
       res.cookie('refreshToken', result.refreshToken, {
         httpOnly: true,

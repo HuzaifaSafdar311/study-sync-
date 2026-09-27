@@ -444,16 +444,17 @@ class AuthService {
   /**
    * Get Google OAuth 2.0 authorization URL
    */
-  getGoogleAuthUrl(): { url: string; isConfigured: boolean } {
+  getGoogleAuthUrl(customRedirectUri?: string): { url: string; isConfigured: boolean } {
     if (!config.google.clientId) {
       return {
         url: '',
         isConfigured: false,
       };
     }
+    const redirectUri = (customRedirectUri || config.google.redirectUri).trim();
     const params = new URLSearchParams({
       client_id: config.google.clientId,
-      redirect_uri: config.google.redirectUri,
+      redirect_uri: redirectUri,
       response_type: 'code',
       scope: 'openid email profile',
       access_type: 'offline',
@@ -468,13 +469,15 @@ class AuthService {
   /**
    * Handle Google OAuth callback authorization code exchange
    */
-  async handleGoogleCallback(code: string) {
+  async handleGoogleCallback(code: string, customRedirectUri?: string) {
     if (!config.google.clientId || !config.google.clientSecret) {
       throw Object.assign(
         new Error('Google OAuth credentials (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET) are not configured in backend/.env.'),
         { statusCode: 400 }
       );
     }
+
+    const redirectUri = (customRedirectUri || config.google.redirectUri).trim();
 
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -483,7 +486,7 @@ class AuthService {
         code,
         client_id: config.google.clientId,
         client_secret: config.google.clientSecret,
-        redirect_uri: config.google.redirectUri,
+        redirect_uri: redirectUri,
         grant_type: 'authorization_code',
       }),
     });
