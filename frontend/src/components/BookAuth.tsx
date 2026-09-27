@@ -8,11 +8,6 @@ import {
   Loader2,
   CheckCircle2,
   Check,
-  X,
-  Sparkles,
-  ExternalLink,
-  ShieldCheck,
-  Key,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authApi, setAuthToken, setAdminToken } from '../services/api';
@@ -43,12 +38,6 @@ export default function BookAuth({ initialMode, onLogin }: BookAuthProps) {
 
   // Mode state for 3D page folding ('login' = unfolded on right, 'register' = folded to left)
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
-
-  // Google OAuth Setup & Test Modal State
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [simulatedEmail, setSimulatedEmail] = useState('');
-  const [simulatedName, setSimulatedName] = useState('');
-  const [simulatedLoading, setSimulatedLoading] = useState(false);
 
   const initialPlan = searchParams.get('plan') || 'free';
 
@@ -92,12 +81,6 @@ export default function BookAuth({ initialMode, onLogin }: BookAuthProps) {
     const token = searchParams.get('token');
     const userParam = searchParams.get('user');
     const googleError = searchParams.get('google_error');
-    const googleUnconfigured = searchParams.get('google_unconfigured');
-
-    if (googleUnconfigured || (googleError && decodeURIComponent(googleError).includes('not configured'))) {
-      setShowGoogleModal(true);
-      return;
-    }
 
     if (googleError) {
       toast.error(decodeURIComponent(googleError));
@@ -264,44 +247,9 @@ export default function BookAuth({ initialMode, onLogin }: BookAuthProps) {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    try {
-      const res = await authApi.getGoogleAuthUrl();
-      if (res.data?.data?.isConfigured && res.data?.data?.url) {
-        window.location.href = res.data.data.url;
-      } else {
-        setShowGoogleModal(true);
-      }
-    } catch {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      window.location.href = `${apiUrl}/auth/google`;
-    }
-  };
-
-  const handleSimulatedGoogleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const emailToUse = simulatedEmail.trim() || 'student.google@gmail.com';
-    const nameToUse = simulatedName.trim() || 'Google Student';
-    setSimulatedLoading(true);
-    try {
-      const res = await authApi.googleTokenLogin({
-        isSimulated: true,
-        email: emailToUse,
-        name: nameToUse,
-      });
-      if (res.data?.data?.accessToken) {
-        setAuthToken(res.data.data.accessToken);
-        const loggedInUser = res.data.data.user;
-        if (onLogin) onLogin(loggedInUser);
-        toast.success('Signed in with Google!');
-        setShowGoogleModal(false);
-        navigate(loggedInUser?.isOnboarded === false ? '/onboarding' : '/dashboard', { replace: true });
-      }
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Google sign-in failed.');
-    } finally {
-      setSimulatedLoading(false);
-    }
+  const handleGoogleSignIn = () => {
+    const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api');
+    window.location.href = `${apiUrl}/auth/google`;
   };
 
   return (
@@ -734,236 +682,6 @@ export default function BookAuth({ initialMode, onLogin }: BookAuthProps) {
 
         </div>
       </div>
-
-      {/* ─── Google OAuth Configuration & Instant Test Modal ─────────── */}
-      {showGoogleModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(5px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-            animation: 'fadeIn 0.2s ease-out',
-          }}
-          onClick={() => setShowGoogleModal(false)}
-        >
-          <div
-            style={{
-              background: '#FFFFFF',
-              borderRadius: '18px',
-              maxWidth: '520px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              border: '1px solid #E2E8F0',
-              padding: '28px',
-              position: 'relative',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setShowGoogleModal(false)}
-              style={{
-                position: 'absolute',
-                top: '18px',
-                right: '18px',
-                background: '#F1F5F9',
-                border: 'none',
-                borderRadius: '50%',
-                width: '32px',
-                height: '32px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                color: '#64748B',
-              }}
-            >
-              <X size={16} />
-            </button>
-
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <div
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '12px',
-                  background: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.15z" />
-                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.27v3.15C3.33 21.46 7.38 24 12 24z" />
-                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.27C.46 8.19 0 10.03 0 12s.46 3.81 1.27 5.42l4.01-3.15z" />
-                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.38 0 3.33 2.54 1.27 6.58l4.01 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
-                </svg>
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0F172A' }}>
-                  Google Sign-In
-                </h3>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748B' }}>
-                  Instant Test & Onboarding Demo
-                </p>
-              </div>
-            </div>
-
-            {/* Test Form */}
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #F0FDF4 0%, #EEF2FF 100%)',
-                border: '1px solid #BBF7D0',
-                borderRadius: '14px',
-                padding: '16px',
-                marginBottom: '20px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <Sparkles size={16} color="#16A34A" />
-                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#166534' }}>
-                  Test Google Flow Right Now
-                </span>
-              </div>
-              <p style={{ margin: '0 0 12px 0', fontSize: '0.82rem', color: '#334155', lineHeight: 1.45 }}>
-                Enter any Google email below to test the 1st-time registration & onboarding wizard without waiting for Google Cloud review!
-              </p>
-
-              <form onSubmit={handleSimulatedGoogleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>
-                    Google Email
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="e.g. yourname@gmail.com"
-                    value={simulatedEmail}
-                    onChange={(e) => setSimulatedEmail(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '9px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                      background: '#FFFFFF',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>
-                    Full Name (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Muhammad Student"
-                    value={simulatedName}
-                    onChange={(e) => setSimulatedName(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '9px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                      background: '#FFFFFF',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={simulatedLoading}
-                  style={{
-                    background: '#16A34A',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '10px 16px',
-                    fontWeight: 700,
-                    fontSize: '0.88rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    marginTop: '4px',
-                  }}
-                >
-                  {simulatedLoading ? (
-                    <>
-                      <Loader2 size={16} className="ss-auth-spin" /> Verifying Google Account...
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck size={16} /> Continue as Google Student
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-
-            {/* Official Credentials Setup Note */}
-            <div style={{ background: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <Key size={14} color="#6366F1" />
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
-                  Live Google Cloud Setup
-                </span>
-              </div>
-              <p style={{ margin: '0 0 8px 0', fontSize: '0.78rem', color: '#64748B', lineHeight: 1.45 }}>
-                To connect real Google accounts in production, add these variables to your <code>backend/.env</code>:
-              </p>
-              <pre
-                style={{
-                  background: '#0F172A',
-                  color: '#38BDF8',
-                  padding: '8px 10px',
-                  borderRadius: '6px',
-                  fontSize: '0.74rem',
-                  overflowX: 'auto',
-                  margin: '0 0 10px 0',
-                }}
-              >
-{`GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=GOCSPX-your-secret
-GOOGLE_REDIRECT_URI=http://localhost:5000/api/auth/google/callback`}
-              </pre>
-              <a
-                href="https://console.cloud.google.com/apis/credentials"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  fontSize: '0.76rem',
-                  color: '#4F46E5',
-                  textDecoration: 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  fontWeight: 600,
-                }}
-              >
-                <span>Open Google Cloud Credentials Console</span>
-                <ExternalLink size={12} />
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
