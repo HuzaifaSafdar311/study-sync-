@@ -7,9 +7,112 @@ import { aiService } from '../ai/ai.service';
 import { taskService } from '../tasks/task.service';
 import { scheduleTaskReminders } from '../notifications/notification.queue';
 import { parseAcademicDeadline } from '../ai/agent.service';
-import prisma from '../../config/database';
+import prisma, { loadUserSettings } from '../../config/database';
+
+function matchCourse(query: string, courses: any[]): any {
+  if (!query || !courses || courses.length === 0) return null;
+  const q = query
+    .trim()
+    .toLowerCase()
+    .replace(/^(?:course|subject|class|open|study|select)[\s:]+/i, '')
+    .replace(/[\s\-_:]+/g, ' ')
+    .trim();
+  if (!q) return null;
+
+  // 1. Exact match (case-insensitive)
+  const exact = courses.find((c: any) => (c.name || '').trim().toLowerCase() === q);
+  if (exact) return exact;
+
+  // 2. Direct inclusion
+  const direct = courses.find((c: any) => {
+    const cName = (c.name || '').trim().toLowerCase();
+    return cName.includes(q) || (q.length >= 2 && q.includes(cName));
+  });
+  if (direct) return direct;
+
+  // 3. Known acronyms / common shortcuts
+  const acronyms: Record<string, string[]> = {
+    os: ['operating system', 'operating systems', 'os'],
+    ml: ['machine learning', 'ml'],
+    ai: ['artificial intelligence', 'ai'],
+    db: ['database', 'database systems', 'dbms', 'db'],
+    calc: ['calculus', 'math', 'algebra'],
+    ds: ['data structure', 'data structures', 'dsa'],
+    dsa: ['data structure', 'data structures', 'dsa'],
+    cn: ['computer networks', 'computer network', 'networking', 'cn'],
+    se: ['software engineering', 'se'],
+    oop: ['object oriented programming', 'object oriented', 'oop'],
+  };
+
+  for (const [key, aliases] of Object.entries(acronyms)) {
+    if (q === key || aliases.includes(q)) {
+      const match = courses.find((c: any) => {
+        const cName = (c.name || '').trim().toLowerCase();
+        return cName === key || aliases.some((alias) => cName.includes(alias));
+      });
+      if (match) return match;
+    }
+  }
+
+  // 4. Token / word boundary overlap
+  const qTokens = q.split(/\s+/).filter((t: string) => t.length > 1);
+  const tokenMatch = courses.find((c: any) => {
+    const cTokens = (c.name || '').trim().toLowerCase().split(/\s+/);
+    return qTokens.some((qt: string) => cTokens.some((ct: string) => ct === qt || ct.includes(qt) || qt.includes(ct)));
+  });
+  if (tokenMatch) return tokenMatch;
+
+  return null;
+}
 
 export class WhatsAppHandler {
+  private async resolveUserId(phone?: string): Promise<string> {
+    const cleanPhone = (phone || '').replace(/\D/g, '');
+
+    // 1. Try finding user by phone in DB
+    if (cleanPhone) {
+      try {
+        const userByPhone = await prisma.user.findFirst({
+          where: { whatsappNumber: cleanPhone },
+        });
+        if (userByPhone?.id) return userByPhone.id;
+      } catch (e) {
+        console.warn('[WhatsApp] Could not find user by whatsappNumber:', e);
+      }
+    }
+
+    // 2. Try user_settings.json (configured email)
+    try {
+      const settings = loadUserSettings();
+      if (settings?.email) {
+        const userByEmail = await prisma.user.findFirst({
+          where: { email: settings.email },
+        });
+        if (userByEmail?.id) {
+          if (!userByEmail.whatsappNumber && cleanPhone) {
+            prisma.user.update({
+              where: { id: userByEmail.id },
+              data: { whatsappNumber: cleanPhone },
+            }).catch(() => {});
+          }
+          return userByEmail.id;
+        }
+      }
+    } catch (e) {
+      console.warn('[WhatsApp] Could not resolve user from settings:', e);
+    }
+
+    // 3. Fallback: find any registered student / admin who has courses
+    try {
+      const courses = await prisma.course.findMany({ take: 1, orderBy: { createdAt: 'desc' } });
+      if (courses.length > 0 && courses[0].userId) {
+        return courses[0].userId;
+      }
+    } catch {}
+
+    return 'personal-user';
+  }
+
   /**
    * Processes incoming WhatsApp messages and routes commands.
    */
@@ -84,14 +187,17 @@ export class WhatsAppHandler {
       return;
     }
 
-    // Unified target JID to send replies (always deliver to user's phone JID so it lands in self-chat)
-    const replyJid = myPhone ? `${myPhone}@s.whatsapp.net` : remoteJid;
+    // Always reply directly to the exact conversation thread where the message originated
+    const replyJid = remoteJid;
+
+    // Track active incoming message so replies are automatically quoted and decrypted properly
+    service.setActiveIncomingMessage(msg);
 
     // Unified session key for this student
     const sessionKey = myPhone || 'personal-user';
     const session = whatsAppStateManager.getSession(sessionKey);
     whatsAppStateManager.updateActivity(sessionKey);
-    const userId = 'personal-user';
+    const userId = await this.resolveUserId(myPhone);
 
     // ─── 0. VOICE NOTE / AUDIO INGESTION PIPELINE ─────────────────────
     if (isAudio) {
@@ -325,73 +431,61 @@ export class WhatsAppHandler {
       return;
     }
 
-    // ─── 3. COMMAND: "Course <Name>" ──────────────────────────────────
-    // If the user is ALREADY inside a course (COURSE_CHAT):
-    // - If they type "course" alone, or "Course <Same Course Name>", or questions about the course
-    //   like "course outline kya hai", it should NOT be intercepted as a command; it should fall through to COURSE_CHAT as normal chat!
-    // - If they explicitly type "Course <Different Course Name>", switch to that different course.
-    const courseCmdMatch = text.match(/^course(?:\s+(.+))?$/i);
-    if (courseCmdMatch) {
-      const query = (courseCmdMatch[1] || '').trim().toLowerCase();
+    // ─── 3. COMMAND: "Course <Name>" or selecting course directly ───
+    const courseCmdMatch = text.match(/^(?:course|subject|class|open|study|select)(?:[\s:]+(.+))?$/i);
+    const isDirectCourseQuery = courseCmdMatch || (session.state === 'IDLE' && text.length >= 2 && text.length <= 40);
+
+    if (isDirectCourseQuery) {
+      const query = (courseCmdMatch ? (courseCmdMatch[1] || '') : text).trim().toLowerCase();
 
       // If user is currently in COURSE_CHAT:
       if (session.state === 'COURSE_CHAT') {
         if (!query) {
           // User sent just the word "course" while in COURSE_CHAT -> treat as normal chat!
-          // (falls through to step 6 COURSE_CHAT)
         } else {
           const courses = await courseService.getCourses(userId);
-          const matchedOtherCourse = courses.find((c: any) => {
-            if (c.id === session.activeCourseId) return false; // Not the current course
-            const cName = c.name.toLowerCase();
-            if (cName === query) return true;
-            if (query === 'db' || query === 'database') return cName.includes('database');
-            if (query === 'os' || query === 'operating') return cName.includes('operating');
-            if (query === 'ai') return cName.includes('artificial intelligence') || cName.includes('ai');
-            if (query === 'calc' || query === 'calculus' || query === 'math') return cName.includes('calculus') || cName.includes('algebra');
-            if (query.length >= 3 && (cName.includes(query) || (query.length > cName.length && query.includes(cName)))) return true;
-            return false;
-          });
+          const matchedTarget = matchCourse(query, courses);
 
-          if (matchedOtherCourse) {
-            // User explicitly requested to switch to another course
-            whatsAppStateManager.enterCourse(sessionKey, matchedOtherCourse.id, matchedOtherCourse.name);
-            const response =
-              `📚 *Switched to Course:* *${matchedOtherCourse.name}* ✅\n` +
-              `🔐 _Official Course Workspace Active_\n\n` +
-              `💬 *What you can do:*\n` +
-              `• Ask any question or concept from ${matchedOtherCourse.name}\n` +
-              `• Type *exit* anytime to return to main menu`;
-            await service.sendMessage(replyJid, response);
-            return;
+          if (matchedTarget) {
+            if (matchedTarget.id === session.activeCourseId) {
+              await service.sendMessage(
+                replyJid,
+                `ℹ️ You are already active in *${matchedTarget.name}* workspace!\n\n` +
+                  `• Ask any question or concept from ${matchedTarget.name}\n` +
+                  `• Share deadline/quiz dates (e.g. _"Kal 5 baje quiz ha"_)\n` +
+                  `• Type *exit* to return to the main menu`
+              );
+              return;
+            } else {
+              // Switch to the other course
+              whatsAppStateManager.enterCourse(sessionKey, matchedTarget.id, matchedTarget.name);
+              const response =
+                `📚 *Switched to Course:* *${matchedTarget.name}* ✅\n` +
+                `🔐 _Official Course Workspace Active_\n\n` +
+                `💬 *What you can do:*\n` +
+                `• Ask any question or concept from ${matchedTarget.name}\n` +
+                `• Type *exit* anytime to return to main menu`;
+              await service.sendMessage(replyJid, response);
+              return;
+            }
           } else {
-            // Did not match another course (e.g. query is current course or question like "outline")
-            // Let it fall through to step 6 COURSE_CHAT as a regular chat message!
+            // Did not match any course command, let it fall through to COURSE_CHAT as regular chat
           }
         }
       } else {
         // User is in IDLE mode (not inside a course)
+        const courses = await courseService.getCourses(userId);
+
         if (!query) {
-          const courses = await courseService.getCourses(userId);
           const courseList = courses.map((c: any, i: number) => `${i + 1}. *Course ${c.name}*`).join('\n');
           await service.sendMessage(
             replyJid,
-            `📚 *Please specify a course name:*\n\n${courseList}\n\n👉 Example: *Course Database Systems*`
+            `📚 *Please specify a course name:*\n\n${courseList}\n\n👉 Example: *Course ${courses[0]?.name || 'os'}*`
           );
           return;
         }
 
-        const courses = await courseService.getCourses(userId);
-        const matched = courses.find((c: any) => {
-          const cName = c.name.toLowerCase();
-          if (cName === query) return true;
-          if (cName.includes(query) || query.includes(cName)) return true;
-          if (query === 'db' || query === 'database') return cName.includes('database');
-          if (query === 'os' || query === 'operating') return cName.includes('operating');
-          if (query === 'ai') return cName.includes('artificial intelligence') || cName.includes('ai');
-          if (query === 'calc' || query === 'calculus' || query === 'math') return cName.includes('calculus') || cName.includes('algebra');
-          return false;
-        });
+        const matched = matchCourse(query, courses);
 
         if (matched) {
           whatsAppStateManager.enterCourse(sessionKey, matched.id, matched.name);
@@ -419,7 +513,8 @@ export class WhatsAppHandler {
 
           await service.sendMessage(replyJid, response);
           return;
-        } else {
+        } else if (courseCmdMatch) {
+          // Only show "Course not found" if they explicitly used a course command keyword like "course foo"
           const availableList = courses
             .map((c: any) => `• *Course ${c.name}*`)
             .join('\n');
@@ -431,6 +526,7 @@ export class WhatsAppHandler {
           );
           return;
         }
+        // If it was just text in IDLE that didn't match a course and didn't have course keyword, fall through to IDLE prompt
       }
     }
 

@@ -1,9 +1,38 @@
 import crypto from 'crypto';
 import { supabase, toSnakeCase, toCamelCase } from './supabase';
 
+const ALLOWED_TASK_COLUMNS = new Set([
+  'id',
+  'user_id',
+  'course_id',
+  'title',
+  'description',
+  'deadline',
+  'type',
+  'priority',
+  'status',
+  'confirmed',
+  'created_at',
+  'updated_at',
+  'subject',
+  'priority_source',
+  'priority_last_updated',
+]);
+
+const ALLOWED_REMINDER_COLUMNS = new Set([
+  'id',
+  'task_id',
+  'scheduled_for',
+  'status',
+  'channel',
+  'created_at',
+  'sent_at',
+  'generated_message',
+]);
+
 export const supabaseRepo: any = {
   user: {
-    findUnique: async ({ where }: { where: { email?: string; id?: string; googleOauthId?: string } }) => {
+    findUnique: async ({ where }: { where: { email?: string; id?: string; googleOauthId?: string; whatsappNumber?: string } }) => {
       try {
         let query = supabase.from('users').select('*');
         if (where.email) {
@@ -12,6 +41,9 @@ export const supabaseRepo: any = {
           query = query.eq('id', where.id);
         } else if (where.googleOauthId) {
           query = query.eq('google_oauth_id', where.googleOauthId);
+        } else if (where.whatsappNumber) {
+          const num = String(where.whatsappNumber).replace(/\D/g, '');
+          query = query.or(`whatsapp_number.eq.${where.whatsappNumber},whatsapp_number.eq.${num},whatsapp_number.eq.+${num}`);
         } else {
           return null;
         }
@@ -31,6 +63,10 @@ export const supabaseRepo: any = {
         if (where?.id) query = query.eq('id', where.id);
         if (where?.email) query = query.ilike('email', where.email.trim().toLowerCase());
         if (where?.googleOauthId) query = query.eq('google_oauth_id', where.googleOauthId);
+        if (where?.whatsappNumber) {
+          const num = String(where.whatsappNumber).replace(/\D/g, '');
+          query = query.or(`whatsapp_number.eq.${where.whatsappNumber},whatsapp_number.eq.${num},whatsapp_number.eq.+${num},whatsapp_number.ilike.%${num.slice(-10)}`);
+        }
         const { data, error } = await query.limit(1).maybeSingle();
         if (error || !data) return null;
         return toCamelCase(data);
@@ -402,13 +438,20 @@ export const supabaseRepo: any = {
 
     create: async ({ data }: { data: any }) => {
       const id = data.id || crypto.randomUUID();
-      const payload = toSnakeCase({
+      const rawPayload = toSnakeCase({
         id,
         status: 'pending',
         confirmed: true,
         ...data,
         deadline: data.deadline ? new Date(data.deadline).toISOString() : undefined,
       });
+
+      const payload: any = {};
+      for (const [k, v] of Object.entries(rawPayload)) {
+        if (ALLOWED_TASK_COLUMNS.has(k) && v !== undefined) {
+          payload[k] = v;
+        }
+      }
 
       const { data: created, error } = await supabase
         .from('tasks')
@@ -424,11 +467,18 @@ export const supabaseRepo: any = {
     },
 
     update: async ({ where, data }: { where: { id: string }; data: any }) => {
-      const payload = toSnakeCase({
+      const rawPayload = toSnakeCase({
         ...data,
         deadline: data.deadline ? new Date(data.deadline).toISOString() : undefined,
         updatedAt: new Date().toISOString(),
       });
+
+      const payload: any = {};
+      for (const [k, v] of Object.entries(rawPayload)) {
+        if (ALLOWED_TASK_COLUMNS.has(k) && v !== undefined) {
+          payload[k] = v;
+        }
+      }
 
       const { data: updated, error } = await supabase
         .from('tasks')
@@ -503,12 +553,19 @@ export const supabaseRepo: any = {
   reminder: {
     create: async ({ data }: { data: any }) => {
       const id = data.id || crypto.randomUUID();
-      const payload = toSnakeCase({
+      const rawPayload = toSnakeCase({
         id,
         status: 'pending',
         ...data,
         scheduledFor: data.scheduledFor ? new Date(data.scheduledFor).toISOString() : undefined,
       });
+
+      const payload: any = {};
+      for (const [k, v] of Object.entries(rawPayload)) {
+        if (ALLOWED_REMINDER_COLUMNS.has(k) && v !== undefined) {
+          payload[k] = v;
+        }
+      }
 
       const { data: created, error } = await supabase
         .from('reminders')
@@ -567,10 +624,17 @@ export const supabaseRepo: any = {
     },
 
     update: async ({ where, data }: { where: { id: string }; data: any }) => {
-      const payload = toSnakeCase({
+      const rawPayload = toSnakeCase({
         ...data,
         sentAt: data.sentAt ? new Date(data.sentAt).toISOString() : undefined,
       });
+
+      const payload: any = {};
+      for (const [k, v] of Object.entries(rawPayload)) {
+        if (ALLOWED_REMINDER_COLUMNS.has(k) && v !== undefined) {
+          payload[k] = v;
+        }
+      }
 
       const { data: updated, error } = await supabase
         .from('reminders')

@@ -33,14 +33,50 @@ export class WhatsAppService {
   private messageStore = new Map<string, any>();
   // Set of recently sent message IDs to prevent self-looping
   private sentMessageIds = new Set<string>();
+  // Track active incoming message so replies can be quoted seamlessly
+  private activeIncomingMessage: any = null;
+  private messageStoreFile: string;
 
   constructor() {
     const baseDir = process.env.VERCEL ? '/tmp' : process.cwd();
     this.authDir = path.resolve(baseDir, 'storage', 'whatsapp_auth');
+    this.messageStoreFile = path.resolve(baseDir, 'storage', 'whatsapp_messages.json');
     try {
       if (!fs.existsSync(this.authDir)) {
         fs.mkdirSync(this.authDir, { recursive: true });
       }
+    } catch {}
+    this.loadMessageStoreFromDisk();
+  }
+
+  public setActiveIncomingMessage(msg: any) {
+    this.activeIncomingMessage = msg;
+  }
+
+  public getActiveIncomingMessage(): any {
+    return this.activeIncomingMessage;
+  }
+
+  private loadMessageStoreFromDisk() {
+    try {
+      if (fs.existsSync(this.messageStoreFile)) {
+        const raw = fs.readFileSync(this.messageStoreFile, 'utf8');
+        const data = JSON.parse(raw);
+        for (const [k, v] of Object.entries(data)) {
+          this.messageStore.set(k, v);
+        }
+      }
+    } catch {}
+  }
+
+  private saveMessageStoreToDisk() {
+    try {
+      const obj: Record<string, any> = {};
+      const entries = Array.from(this.messageStore.entries()).slice(-1000);
+      for (const [k, v] of entries) {
+        obj[k] = v;
+      }
+      fs.writeFileSync(this.messageStoreFile, JSON.stringify(obj));
     } catch {}
   }
 
@@ -50,6 +86,7 @@ export class WhatsAppService {
       const firstKey = this.messageStore.keys().next().value;
       if (firstKey) this.messageStore.delete(firstKey);
     }
+    this.saveMessageStoreToDisk();
   }
 
   /**
@@ -72,7 +109,7 @@ export class WhatsAppService {
       console.log('[WhatsApp] 🔄 Initializing StudySync WhatsApp Agent Service...');
       const baileys = await getBaileys();
       const makeWASocket = baileys.default || baileys.makeWASocket || baileys;
-      const { useMultiFileAuthState, DisconnectReason } = baileys;
+      const { useMultiFileAuthState, DisconnectReason, makeCacheableSignalKeyStore } = baileys;
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
 
       if (state.creds?.me) {
@@ -84,16 +121,23 @@ export class WhatsAppService {
         }
       }
 
+      const pinoLogger = pino({ level: 'silent' }) as any;
+
       this.sock = makeWASocket({
-        auth: state,
+        auth: {
+          creds: state.creds,
+          keys: makeCacheableSignalKeyStore ? makeCacheableSignalKeyStore(state.keys, pinoLogger) : state.keys,
+        },
+        version: [2, 3000, 1043857760],
         printQRInTerminal: false,
-        logger: pino({ level: 'silent' }) as any,
+        logger: pinoLogger,
         browser: ['StudySync AI', 'Chrome', '1.0.0'],
         connectTimeoutMs: 60000,
         keepAliveIntervalMs: 25000,
         syncFullHistory: false,
+        markOnlineOnConnect: true,
         getMessage: async (key: any) => {
-          if (key.id) {
+          if (key?.id) {
             const cached = this.messageStore.get(key.id);
             if (cached) return cached;
           }
@@ -180,6 +224,7 @@ export class WhatsAppService {
       // Handle incoming messages
       this.sock.ev.on('messages.upsert', async ({ messages, type }: { messages: any[]; type: any }) => {
         if (!this.sock) return;
+        if (type !== 'notify') return; // Ignore internal history sync and outbound message appends
 
         const incomingToProcess: any[] = [];
 
@@ -218,7 +263,8 @@ export class WhatsAppService {
    * If server/WhatsApp is offline, it buffers into the persistent queue
    * and automatically sends in sequence when reconnected.
    */
-  async sendMessage(to: string, text: string): Promise<boolean> {
+  async sendMessage(to: string, text: string, quotedMsg?: any): Promise<boolean> {
+    const quote = quotedMsg || this.activeIncomingMessage;
     if (!this.sock || !this.isConnected) {
       console.warn(`[WhatsApp] Offline/Disconnected. Buffering message to ${to} into outbound queue.`);
       whatsAppQueue.enqueueOutbound(to, text);
@@ -226,7 +272,7 @@ export class WhatsAppService {
     }
 
     try {
-      const sent = await this.rawSendMessage(to, text);
+      const sent = await this.rawSendMessage(to, text, quote);
       if (!sent) {
         // If raw send failed (e.g. socket severed mid-transmission), queue it
         console.warn(`[WhatsApp] Raw send failed. Enqueueing to outbound queue for retry: ${to}`);
@@ -243,13 +289,13 @@ export class WhatsAppService {
   /**
    * Directly transmits message via active WhatsApp socket.
    */
-  async rawSendMessage(to: string, text: string): Promise<boolean> {
+  async rawSendMessage(to: string, text: string, quotedMsg?: any): Promise<boolean> {
     if (!this.sock || !this.isConnected) {
       return false;
     }
 
     try {
-      // Normalize target JID
+      // Normalize target JID (preserving @lid or @s.whatsapp.net as passed)
       let targetJid = to.trim();
       if (!targetJid.includes('@')) {
         const cleaned = targetJid.replace(/[^0-9]/g, '');
@@ -259,13 +305,13 @@ export class WhatsAppService {
         targetJid = `${userPart.split(':')[0]}@${domainPart}`;
       }
 
-      // If sending to user's self chat (LID or phone), prefer verified user phone JID
-      if (this.phoneNumber && (targetJid.endsWith('@lid') || targetJid.includes(this.phoneNumber))) {
-        targetJid = `${this.phoneNumber}@s.whatsapp.net`;
-      }
-
       console.log(`[WhatsApp Outbound] Sending message to ${targetJid}...`);
-      const sent = await this.sock.sendMessage(targetJid, { text });
+      const sent = await this.sock.sendMessage(
+        targetJid,
+        { text },
+        quotedMsg ? { quoted: quotedMsg } : undefined
+      );
+
       if (sent?.key?.id) {
         if (sent.message) {
           this.saveMessageToStore(sent.key.id, sent.message);
