@@ -186,8 +186,17 @@ class CourseService {
       },
     });
 
+    if (courses.length === 0 && (!userId || userId === 'personal-user')) {
+      courses = await prisma.course.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: {
+          _count: { select: { tasks: true } },
+        },
+      });
+    }
+
     const allTasks = await prisma.task.findMany({
-      where: { userId },
+      where: userId && userId !== 'personal-user' ? { userId } : {},
     });
 
     return courses.map((c: any) => {
@@ -461,9 +470,9 @@ class CourseService {
       return { created: [], discarded: [] };
     }
 
-    const course = await prisma.course.findFirst({
-      where: { id: courseId, userId },
-    });
+    const course =
+      (await prisma.course.findFirst({ where: { id: courseId, userId } })) ||
+      (await prisma.course.findUnique({ where: { id: courseId } }));
     if (!course) return { created: [], discarded: [] };
 
     // 1. Detect tasks from content using AI
@@ -620,9 +629,9 @@ class CourseService {
       | Array<{ filename?: string; mimeType?: string; base64?: string; isImage?: boolean }>,
     enableThink: boolean = false
   ) {
-    const course = await prisma.course.findFirst({
-      where: { id: courseId, userId },
-    });
+    const course =
+      (await prisma.course.findFirst({ where: { id: courseId, userId } })) ||
+      (await prisma.course.findUnique({ where: { id: courseId } }));
 
     if (!course) {
       throw Object.assign(new Error('Course not found.'), { statusCode: 404 });
@@ -825,6 +834,18 @@ class CourseService {
         courseId,
         taskContentToScan
       );
+    } else {
+      // Collect the tasks that the agent scheduled via schedule_academic_task
+      for (const tc of agentToolCalls) {
+        if (tc.name === 'schedule_academic_task' && tc.result?.success) {
+          autoScheduleResult.created.push({
+            id: tc.result.id,
+            title: tc.result.title,
+            type: tc.result.type || 'quiz',
+            deadline: tc.result.rawDeadline || tc.result.deadline,
+          });
+        }
+      }
     }
 
     let finalAnswer = answer;
