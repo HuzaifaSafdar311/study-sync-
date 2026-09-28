@@ -197,31 +197,6 @@ class AuthService {
   async login(input: LoginInput) {
     const cleanEmail = (input.email || '').trim().toLowerCase();
 
-    // Check if logging in as Administrator (admin@studysync.com)
-    if (cleanEmail === 'admin@studysync.com') {
-      const adminRes = await adminAuthService.login({
-        identifier: cleanEmail,
-        password: input.password,
-      });
-
-      const tokens = this.generateTokens(adminRes.admin.id, 'admin');
-      return {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        adminToken: adminRes.adminToken,
-        isAdmin: true,
-        user: {
-          id: adminRes.admin.id,
-          fullName: 'StudySync Administrator',
-          email: adminRes.admin.email,
-          role: 'admin',
-          isVerified: true,
-          isOnboarded: true,
-          plan: 'campus',
-        },
-      };
-    }
-
     const user = await prisma.user.findUnique({
       where: { email: cleanEmail },
       select: {

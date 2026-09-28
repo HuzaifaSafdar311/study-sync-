@@ -99,32 +99,38 @@ class AdminAuthService {
       });
     }
 
+    // Require securityPassphrase on all admin logins (hard failure if missing)
+    if (!securityPassphrase || securityPassphrase.trim() === '') {
+      throw Object.assign(new Error('Admin security passphrase is required.'), {
+        statusCode: 401,
+      });
+    }
+
+    if (!account.securityPassphrase || account.securityPassphrase.trim() === '') {
+      throw Object.assign(
+        new Error('Admin account is improperly configured without a security passphrase. Please contact support.'),
+        { statusCode: 401 }
+      );
+    }
+
     // SEC-017: Verify Security Passphrase using Argon2id / constant-time comparison
-    if (account.securityPassphrase && account.securityPassphrase.trim() !== '') {
-      if (!securityPassphrase) {
-        throw Object.assign(new Error('Invalid admin security passphrase.'), {
-          statusCode: 401,
-        });
-      }
+    const { valid, needsRehash } = await verifyPassphrase(account.securityPassphrase, securityPassphrase);
+    if (!valid) {
+      throw Object.assign(new Error('Invalid admin security passphrase.'), {
+        statusCode: 401,
+      });
+    }
 
-      const { valid, needsRehash } = await verifyPassphrase(account.securityPassphrase, securityPassphrase);
-      if (!valid) {
-        throw Object.assign(new Error('Invalid admin security passphrase.'), {
-          statusCode: 401,
+    // Upgrade plaintext passphrase in DB to Argon2id
+    if (needsRehash) {
+      try {
+        const hashed = await hashPassword(securityPassphrase.trim());
+        await prisma.adminAccount.update({
+          where: { id: account.id },
+          data: { securityPassphrase: hashed },
         });
-      }
-
-      // Upgrade plaintext passphrase in DB to Argon2id
-      if (needsRehash) {
-        try {
-          const hashed = await hashPassword(securityPassphrase.trim());
-          await prisma.adminAccount.update({
-            where: { id: account.id },
-            data: { securityPassphrase: hashed },
-          });
-        } catch (err) {
-          console.warn('[AdminAuth] Could not upgrade security passphrase hash:', err);
-        }
+      } catch (err) {
+        console.warn('[AdminAuth] Could not upgrade security passphrase hash:', err);
       }
     }
 
