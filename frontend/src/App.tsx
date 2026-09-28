@@ -206,6 +206,26 @@ function App() {
   }, []);
 
   const checkAuth = async () => {
+    // 1. Handle Google OAuth callback in URL first (token + user embedded by backend redirect)
+    const urlParams = new URLSearchParams(window.location.search);
+    const googleAuth = urlParams.get('google_auth');
+    const googleToken = urlParams.get('token');
+    const userParam = urlParams.get('user');
+    if (googleAuth === 'success' && googleToken && userParam) {
+      try {
+        const parsedUser = JSON.parse(decodeURIComponent(userParam));
+        setAuthToken(googleToken);
+        setUser(parsedUser);
+        setAuthChecking(false);
+        // Clean the URL without triggering a re-render loop
+        window.history.replaceState({}, '', parsedUser?.isOnboarded === false ? '/onboarding' : '/dashboard');
+        return;
+      } catch {
+        // Fall through to normal auth check if parsing fails
+      }
+    }
+
+    // 2. Normal token-based auth check
     const token = getAuthToken();
     if (!token) {
       setUser(null);
