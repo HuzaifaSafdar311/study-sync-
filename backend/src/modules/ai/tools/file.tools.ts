@@ -702,20 +702,30 @@ export const fileTools = {
       NODE_OPTIONS: '--max-old-space-size=256',
     };
 
+    // Enforce bounded execution timeout (100ms min, 15000ms max)
+    const boundedTimeout = Math.min(Math.max(timeoutMs || 10000, 100), 15000);
+    const MAX_OUTPUT_BUFFER = 256 * 1024; // 256KB output buffer cap
+
     return new Promise((resolve) => {
-      exec(
+      let isSettled = false;
+      const child = exec(
         command,
         {
           cwd: workspaceDir,
-          timeout: timeoutMs,
-          maxBuffer: 1024 * 1024 * 2, // 2MB max
+          timeout: boundedTimeout,
+          maxBuffer: MAX_OUTPUT_BUFFER,
+          killSignal: 'SIGKILL',
           env: cleanEnv,
         },
         (error, stdout, stderr) => {
+          if (isSettled) return;
+          isSettled = true;
+          if (killTimer) clearTimeout(killTimer);
+
           if (error) {
             resolve({
               success: false,
-              exitCode: error.code || 1,
+              exitCode: typeof error.code === 'number' ? error.code : 1,
               error: error.message,
               stdout: stdout ? stdout.trim() : '',
               stderr: stderr ? stderr.trim() : '',
@@ -731,6 +741,15 @@ export const fileTools = {
           });
         }
       );
+
+      // Hard kill watchdog if child process hangs past timeout + 500ms
+      const killTimer = setTimeout(() => {
+        if (!isSettled) {
+          try {
+            child.kill('SIGKILL');
+          } catch {}
+        }
+      }, boundedTimeout + 500);
     });
   },
 };
