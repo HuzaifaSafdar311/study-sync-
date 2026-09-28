@@ -52,9 +52,9 @@ router.get('/auth/me', adminAuthGuard as any, async (req: AdminAuthRequest, res:
 
 /**
  * POST /api/admin/auth/logout
- * SEC-004: Invalidate admin token upon logout
+ * SEC-004 / BUG-002: Invalidate admin token upon logout (requires authenticated admin)
  */
-router.post('/auth/logout', async (req: Request, res: Response) => {
+router.post('/auth/logout', adminAuthGuard as any, async (req: AdminAuthRequest, res: Response) => {
   try {
     const adminHeader = req.headers['x-admin-token'] as string | undefined;
     const authHeader = req.headers.authorization;
