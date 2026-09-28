@@ -684,6 +684,24 @@ export const fileTools = {
       }
     }
 
+    // Production / container gating
+    if (process.env.NODE_ENV === 'production' && process.env.BASH_TOOL_ENABLED !== 'true') {
+      return {
+        success: false,
+        error: 'Execution denied: bash_tool is disabled in production without container sandbox (BASH_TOOL_ENABLED=false).',
+      };
+    }
+
+    // Minimal strict environment allowlist (never spread process.env)
+    const cleanEnv: NodeJS.ProcessEnv = {
+      PATH: process.env.PATH || '',
+      HOME: workspaceDir,
+      USERPROFILE: workspaceDir,
+      WORKSPACE_DIR: workspaceDir,
+      COURSE_ID: courseId,
+      NODE_OPTIONS: '--max-old-space-size=256',
+    };
+
     return new Promise((resolve) => {
       exec(
         command,
@@ -691,11 +709,7 @@ export const fileTools = {
           cwd: workspaceDir,
           timeout: timeoutMs,
           maxBuffer: 1024 * 1024 * 2, // 2MB max
-          env: {
-            ...process.env,
-            WORKSPACE_DIR: workspaceDir,
-            COURSE_ID: courseId,
-          },
+          env: cleanEnv,
         },
         (error, stdout, stderr) => {
           if (error) {
