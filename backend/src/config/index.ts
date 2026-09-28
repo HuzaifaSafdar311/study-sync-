@@ -18,6 +18,13 @@ export function validateStartupEnv(): void {
   if (!process.env.GROQ_API_KEY?.trim() && !process.env.GROQ_API_KEYS?.trim()) missing.push('GROQ_API_KEY');
   if (!process.env.GEMINI_API_KEY?.trim() && !process.env.GEMINI_API_KEYS?.trim()) missing.push('GEMINI_API_KEY');
 
+  // SEC-001: Refuse to start in production if BYOK master encryption key is missing
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.BYOK_ENCRYPTION_SECRET?.trim() && !process.env.ENCRYPTION_MASTER_KEY?.trim()) {
+      missing.push('BYOK_ENCRYPTION_SECRET');
+    }
+  }
+
   if (missing.length > 0) {
     throw new Error(
       `[Startup Validation Error] Missing required environment variables: ${missing.join(', ')}. Server cannot start without these.`

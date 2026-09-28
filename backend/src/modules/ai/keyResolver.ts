@@ -1,7 +1,7 @@
 import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import prisma from '../../config/database';
-import { decryptApiKey } from '../../utils/encryption';
+import { decryptApiKeyWithReEncrypt } from '../../utils/encryption';
 import { config } from '../../config';
 
 // System fallback pool
@@ -81,11 +81,22 @@ export async function resolveAIClientForUser(
 
       if (keyRecord && keyRecord.encryptedData && keyRecord.iv && keyRecord.authTag) {
         try {
-          const decryptedKey = decryptApiKey(
+          const { decryptedKey, reEncrypted } = decryptApiKeyWithReEncrypt(
             keyRecord.encryptedData,
             keyRecord.iv,
             keyRecord.authTag
           );
+
+          if (reEncrypted) {
+            prisma.userApiKey.update({
+              where: { id: keyRecord.id },
+              data: {
+                encryptedData: reEncrypted.encryptedData,
+                iv: reEncrypted.iv,
+                authTag: reEncrypted.authTag,
+              },
+            }).catch((err) => console.error('[BYOK Migration] Failed to persist re-encrypted key:', err));
+          }
 
           const actualProvider = (keyRecord.provider as string) || targetProvider;
 

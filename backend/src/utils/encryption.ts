@@ -6,17 +6,46 @@ import { config } from '../config';
  * Provides confidentiality (256-bit encryption) and integrity (Auth Tag verification).
  */
 
-// Derive or get 32-byte key from environment
-function getMasterKey(): Buffer {
-  const rawSecret = process.env.ENCRYPTION_MASTER_KEY || config.jwt.accessSecret || 'studysync_enterprise_master_key_default_32b!';
-  // Hash to guaranteed 32 bytes (256 bits)
-  return crypto.createHash('sha256').update(rawSecret).digest();
-}
-
 export interface EncryptedPayload {
   encryptedData: string; // hex
   iv: string;            // hex (16 bytes)
   authTag: string;       // hex (16 bytes)
+}
+
+export interface DecryptResult {
+  decryptedKey: string;
+  isMigrated: boolean;
+  reEncrypted?: EncryptedPayload;
+}
+
+// Derive primary 32-byte key from environment
+function getPrimaryMasterKey(): Buffer {
+  const rawSecret = process.env.BYOK_ENCRYPTION_SECRET?.trim()
+    || process.env.ENCRYPTION_MASTER_KEY?.trim()
+    || config.jwt.accessSecret
+    || 'studysync_enterprise_master_key_default_32b!';
+  return crypto.createHash('sha256').update(rawSecret).digest();
+}
+
+// Derive legacy/fallback keys to ensure stored keys survive migrations
+function getFallbackKeys(): Buffer[] {
+  const keys: Buffer[] = [];
+  const primarySecret = process.env.BYOK_ENCRYPTION_SECRET?.trim();
+
+  if (process.env.ENCRYPTION_MASTER_KEY?.trim() && process.env.ENCRYPTION_MASTER_KEY.trim() !== primarySecret) {
+    keys.push(crypto.createHash('sha256').update(process.env.ENCRYPTION_MASTER_KEY.trim()).digest());
+  }
+
+  if (config?.jwt?.accessSecret && config.jwt.accessSecret !== primarySecret) {
+    keys.push(crypto.createHash('sha256').update(config.jwt.accessSecret).digest());
+  }
+
+  const legacyDefault = 'studysync_enterprise_master_key_default_32b!';
+  if (legacyDefault !== primarySecret) {
+    keys.push(crypto.createHash('sha256').update(legacyDefault).digest());
+  }
+
+  return keys;
 }
 
 /**
@@ -27,7 +56,7 @@ export function encryptApiKey(plainKey: string): EncryptedPayload {
     throw new Error('API key to encrypt must be a non-empty string.');
   }
 
-  const key = getMasterKey();
+  const key = getPrimaryMasterKey();
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
 
@@ -44,21 +73,55 @@ export function encryptApiKey(plainKey: string): EncryptedPayload {
 
 /**
  * Decrypts an AES-256-GCM encrypted payload back to the plain API key string.
- * Automatically verifies the auth tag; throws if ciphertext or tag was tampered with.
+ * Supports transparent fallback to legacy keys and produces a re-encrypted payload if migrated.
  */
-export function decryptApiKey(encryptedData: string, iv: string, authTag: string): string {
+export function decryptApiKeyWithReEncrypt(encryptedData: string, iv: string, authTag: string): DecryptResult {
   if (!encryptedData || !iv || !authTag) {
     throw new Error('Invalid encrypted payload: missing encryptedData, iv, or authTag.');
   }
 
-  const key = getMasterKey();
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
-  decipher.setAuthTag(Buffer.from(authTag, 'hex'));
+  const ivBuf = Buffer.from(iv, 'hex');
+  const tagBuf = Buffer.from(authTag, 'hex');
 
-  let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
+  // 1. Attempt decryption using primary master key
+  const primaryKey = getPrimaryMasterKey();
+  try {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', primaryKey, ivBuf);
+    decipher.setAuthTag(tagBuf);
+    let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return { decryptedKey: decrypted, isMigrated: false };
+  } catch {
+    // 2. Attempt decryption using fallback keys (e.g., prior to secret rotation)
+    const fallbackKeys = getFallbackKeys();
+    for (const fbKey of fallbackKeys) {
+      try {
+        const decipher = crypto.createDecipheriv('aes-256-gcm', fbKey, ivBuf);
+        decipher.setAuthTag(tagBuf);
+        let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
 
-  return decrypted;
+        // Legacy key succeeded — re-encrypt using active primary key for persistence
+        const reEncrypted = encryptApiKey(decrypted);
+        return {
+          decryptedKey: decrypted,
+          isMigrated: true,
+          reEncrypted,
+        };
+      } catch {
+        // Continue to next fallback
+      }
+    }
+
+    throw new Error('Failed to decrypt API key: invalid ciphertext, auth tag, or unknown encryption key.');
+  }
+}
+
+/**
+ * Standard decryption wrapper returning just the decrypted plaintext key.
+ */
+export function decryptApiKey(encryptedData: string, iv: string, authTag: string): string {
+  return decryptApiKeyWithReEncrypt(encryptedData, iv, authTag).decryptedKey;
 }
 
 /**
