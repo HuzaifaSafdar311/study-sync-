@@ -25,14 +25,49 @@ export function getCourseWorkspaceDir(courseId: string): string {
 }
 
 /**
- * Validates that the target path remains strictly within the course workspace sandbox
+ * Validates that the target path remains strictly within the course workspace sandbox.
+ * Prevents sibling prefix collisions (course_alpha vs course_alpha_extended) and symlink escapes.
  */
-function resolveSafePath(courseId: string, relativePath: string): string {
+export function resolveSafePath(courseId: string, relativePath: string): string {
   const workspaceDir = getCourseWorkspaceDir(courseId);
-  const resolved = path.resolve(workspaceDir, relativePath);
-  if (!resolved.startsWith(workspaceDir)) {
+  if (!fs.existsSync(workspaceDir)) {
+    fs.mkdirSync(workspaceDir, { recursive: true });
+  }
+  const realWorkspaceDir = fs.realpathSync(workspaceDir);
+  const resolved = path.resolve(realWorkspaceDir, relativePath);
+
+  // If the target file exists, verify its realpath to prevent symlink traversal
+  let realTarget = resolved;
+  if (fs.existsSync(resolved)) {
+    try {
+      realTarget = fs.realpathSync(resolved);
+    } catch {}
+  } else {
+    // For files not yet created, verify nearest existing ancestor directory
+    let currentDir = path.dirname(resolved);
+    while (!fs.existsSync(currentDir) && currentDir !== path.dirname(currentDir)) {
+      currentDir = path.dirname(currentDir);
+    }
+    if (fs.existsSync(currentDir)) {
+      const realParent = fs.realpathSync(currentDir);
+      const isParentContained =
+        realParent === realWorkspaceDir || realParent.startsWith(realWorkspaceDir + path.sep);
+      if (!isParentContained) {
+        throw new Error('Access denied: Path points outside course workspace sandbox.');
+      }
+    }
+  }
+
+  const isContained =
+    realTarget === realWorkspaceDir || realTarget.startsWith(realWorkspaceDir + path.sep);
+
+  const rel = path.relative(realWorkspaceDir, realTarget);
+  const isRelativeSafe = !rel.startsWith('..') && !path.isAbsolute(rel);
+
+  if (!isContained || !isRelativeSafe) {
     throw new Error('Access denied: Path points outside course workspace sandbox.');
   }
+
   return resolved;
 }
 

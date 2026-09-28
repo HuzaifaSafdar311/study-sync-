@@ -96,15 +96,15 @@ describe('JOB B: Study Agent Security & Tool Audit', () => {
         `../${path.basename(wsExt)}/private_notes.txt`
       );
 
-      // Because startsWith('...sec_course_alpha') matches '...sec_course_alpha_extended', traversal succeeds!
+      // In new hardened code, resolveSafePath strictly checks path containment and rejects sibling prefix collision
       assert.strictEqual(
         viewResult.success,
-        true,
-        'resolveSafePath flaw allowed accessing sibling folder sharing name prefix'
+        false,
+        'resolveSafePath must reject accessing sibling folder sharing name prefix'
       );
       assert.ok(
-        viewResult.content?.includes('TOP_SECRET_EXAM_QUESTIONS'),
-        'Cross-course content was leaked via path prefix collision'
+        viewResult.error?.includes('Access denied'),
+        'Must return Access denied error on sibling prefix traversal'
       );
     });
   });
