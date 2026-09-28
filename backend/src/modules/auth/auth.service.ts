@@ -10,7 +10,7 @@ import { adminAuthService } from '../admin/admin.auth.service';
 import { toSafeUser } from '../../utils/safeUser';
 
 function generate6DigitOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 class AuthService {
