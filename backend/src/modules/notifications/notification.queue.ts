@@ -538,7 +538,7 @@ export function startStandaloneReminderEngine() {
             continue;
           }
 
-          const userEmail = task.user?.email || process.env.SMTP_USER || 'devnexes.support@gmail.com';
+          const userEmail = task.user?.email || process.env.SMTP_USER || 'mails.studysync@gmail.com';
           const userName = task.user?.fullName || 'Student';
 
           const deadline = new Date(task.deadline);

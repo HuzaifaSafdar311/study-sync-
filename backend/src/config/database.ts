@@ -22,7 +22,7 @@ export function loadUserSettings() {
     console.error('[Settings] Error loading user_settings.json:', err);
   }
   return {
-    email: 'devnexes.support@gmail.com',
+    email: 'mails.studysync@gmail.com',
     fullName: 'Personal Student',
     reminderLeadTimeMins: 1440,
     whatsappNumber: '',

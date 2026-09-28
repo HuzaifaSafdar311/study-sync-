@@ -60,7 +60,7 @@ class EmailService {
   async sendEmail(options: SendMailOptions): Promise<{ success: boolean; previewUrl?: string }> {
     userAnalyticsService.recordEmailSent(options.to);
     const transporter = await this.getTransporter();
-    const from = process.env.SMTP_FROM || config.sendgrid.fromEmail || 'StudySync AI <reminders@studysync.ai>';
+    const from = process.env.SMTP_FROM || config.sendgrid.fromEmail || 'StudySync AI <mails.studysync@gmail.com>';
 
     const htmlContent = options.html || `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #f8fafc; border-radius: 12px;">

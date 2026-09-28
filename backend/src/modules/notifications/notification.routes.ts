@@ -42,7 +42,7 @@ router.get('/digest/preview', authGuard, async (req: AuthRequest, res: Response,
 
 /**
  * POST /api/notifications/test-email
- * Sends a live test verification email from devnexes.support@gmail.com to the student's email.
+ * Sends a live test verification email from mails.studysync@gmail.com to the student's email.
  */
 router.post('/test-email', authGuard, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -61,17 +61,17 @@ router.post('/test-email', authGuard, async (req: AuthRequest, res: Response, ne
       return;
     }
 
-    console.log(`[Email] Dispatching test notification from devnexes.support@gmail.com to: ${recipientEmail}`);
+    console.log(`[Email] Dispatching test notification from mails.studysync@gmail.com to: ${recipientEmail}`);
 
     const result = await emailService.sendEmail({
       to: recipientEmail,
-      subject: 'StudySync AI — Test Notification (Devnexes Support)',
-      text: `Hello,\n\nThis is a live test notification sent from devnexes.support@gmail.com!\n\nYour notification email has been verified and set to: ${recipientEmail}\n\nAll future task reminders, deadlines, and pending task digests will be delivered to this inbox.\n\nBest regards,\nStudySync AI (Devnexes Support)`,
+      subject: 'StudySync AI — Test Notification',
+      text: `Hello,\n\nThis is a live test notification sent from mails.studysync@gmail.com!\n\nYour notification email has been verified and set to: ${recipientEmail}\n\nAll future task reminders, deadlines, and pending task digests will be delivered to this inbox.\n\nBest regards,\nStudySync AI`,
     });
 
     res.status(200).json({
       success: true,
-      message: `Test email sent to ${recipientEmail} from devnexes.support@gmail.com!`,
+      message: `Test email sent to ${recipientEmail} from mails.studysync@gmail.com!`,
       data: result,
     });
   } catch (error) {
