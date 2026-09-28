@@ -21,9 +21,9 @@ export const authGuard = async (req: AuthRequest, res: Response, next: NextFunct
       token = authHeader.substring(7).trim();
     } else if (authHeader) {
       token = authHeader.trim();
-    } else if (req.query?.token && typeof req.query.token === 'string') {
-      token = req.query.token.trim();
     }
+    // SEC-002: Token from query parameter is deliberately rejected on all general routes.
+    // Download routes use dedicated single-use signed download links via downloadAuthGuard.
 
     if (!token) {
       res.status(401).json({

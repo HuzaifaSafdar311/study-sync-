@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { toolsController, handleUpload } from './tools.controller';
 import { authGuard } from '../../middleware/authGuard';
 import { adminAuthGuard } from '../../middleware/adminAuthGuard';
+import { downloadAuthGuard } from '../../utils/downloadToken';
 import { toolsProcessingLimiter } from '../../middleware/rateLimit';
 
 const router = Router();
@@ -39,6 +40,6 @@ router.get('/jobs/:id', toolsController.getJobStatus);
  * GET /api/tools/jobs/:id/download
  * Streams/sends the converted or compressed result file once status is 'done'.
  */
-router.get('/jobs/:id/download', authGuard as any, toolsController.downloadJobResult);
+router.get('/jobs/:id/download', downloadAuthGuard as any, toolsController.downloadJobResult);
 
 export default router;

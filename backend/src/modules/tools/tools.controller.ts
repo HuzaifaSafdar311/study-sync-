@@ -5,6 +5,7 @@ import crypto from 'crypto';
 const uuidv4 = () => crypto.randomUUID();
 import { TOOLS_INPUT_DIR } from './tools.queue';
 import { toolsService } from './tools.service';
+import { generateDownloadToken } from '../../utils/downloadToken';
 
 // Multer storage: save incoming file directly to TOOLS_INPUT_DIR with unique prefix
 const storage = multer.diskStorage({
@@ -174,7 +175,9 @@ export class ToolsController {
         error: job.error,
         createdAt: job.createdAt,
         completedAt: job.completedAt,
-        downloadUrl: job.status === 'done' ? `/api/tools/jobs/${job.id}/download` : undefined,
+        downloadUrl: job.status === 'done'
+          ? (job.userId ? `/api/tools/jobs/${job.id}/download?token=${generateDownloadToken(job.userId, job.id)}` : `/api/tools/jobs/${job.id}/download`)
+          : undefined,
       },
     });
   };
