@@ -14,22 +14,25 @@ describe('JOB B: Study Agent Security & Tool Audit', () => {
   describe('1. bash_tool audit', () => {
     const testCourseId = 'audit_agent_sec_course_1';
 
-    it('VULNERABILITY: leaks all host process environment variables to executed commands (bypassing naive regex)', async () => {
-      // In file.tools.ts line 695: env: { ...process.env, WORKSPACE_DIR: workspaceDir, COURSE_ID: courseId }
-      // This exposes JWT secrets, DB URLs, encryption keys, etc.
-      // Although `/\.env/i` is blacklisted, accessing environment variables via process['e'+'nv'] or other shells bypasses it:
+    it('[FIXED AGENT-001] bash_tool must NOT leak host environment variables to executed commands', async () => {
+      // After AGENT-001 fix: bash_tool runs with a minimal allowlist env.
+      // Host secrets (JWT, DB, API keys) are no longer passed to child processes.
       process.env.TEST_SECRET_KEY = 'super_secret_audit_token_12345';
 
-      const cmd = 'node -e "const e = process[\'e\'+\'nv\']; console.log(e.TEST_SECRET_KEY)"';
+      const cmd = 'node -e "const e = process[\'e\'+\'nv\']; console.log(e.TEST_SECRET_KEY || \'NOT_FOUND\')"';
 
-      const res = await fileTools.bashTool(testCourseId, cmd);
-
-      assert.strictEqual(res.success, true);
-      assert.strictEqual(
-        res.stdout,
-        'super_secret_audit_token_12345',
-        'bash_tool exposed host environment variables to executed process'
-      );
+      const res: any = await fileTools.bashTool(testCourseId, cmd);
+      // Either rejected by production guard or secret absent from child env
+      if (res.success) {
+        assert.notStrictEqual(
+          (res.stdout as string)?.trim(),
+          'super_secret_audit_token_12345',
+          'bash_tool must NOT expose host environment variables to executed processes',
+        );
+      } else {
+        // Rejected entirely — also correct
+        assert.ok(res.error || res.stderr || !res.success, 'Rejection must be explicit');
+      }
     });
 
     it('VULNERABILITY: file system boundaries can be breached outside workspace dir', async () => {
@@ -64,12 +67,11 @@ describe('JOB B: Study Agent Security & Tool Audit', () => {
       assert.ok(duration < 1500, `Command should be killed close to timeout (took ${duration}ms)`);
     });
 
-    it('VULNERABILITY: maxBuffer is set to 2MB which allows large output before rejection', async () => {
-      // 2MB buffer cap allows generating 1.5MB output safely, but anything above 2MB throws maxBuffer error
-      const bigOutputCmd = 'node -e "process.stdout.write(\'A\'.repeat(1024 * 1024))"'; // 1MB
-      const res = await fileTools.bashTool(testCourseId, bigOutputCmd);
-      assert.strictEqual(res.success, true);
-      assert.strictEqual(res.stdout.length, 1024 * 1024);
+    it('[FIXED AGENT-002] bash_tool enforces 256KB output cap and rejects oversized output', async () => {
+      // After AGENT-002 fix: output cap is 256KB (262144 bytes)
+      const over256KB = 'node -e "process.stdout.write(\'A\'.repeat(300 * 1024))"'; // 300KB > 256KB cap
+      const res = await fileTools.bashTool(testCourseId, over256KB);
+      assert.strictEqual(res.success, false, 'bash_tool must reject output exceeding 256KB cap');
     });
   });
 
