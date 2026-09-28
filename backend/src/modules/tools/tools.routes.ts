@@ -9,10 +9,10 @@ const router = Router();
 
 /**
  * GET /api/tools/health
- * Returns status of external binaries (soffice, gs) and tool queue availability.
- * Protected: Admin-only diagnostics route.
+ * Returns boolean availability of external binaries (LibreOffice, Ghostscript).
+ * Accessible to authenticated students.
  */
-router.get('/health', adminAuthGuard as any, toolsController.getHealth);
+router.get('/health', authGuard as any, toolsController.getHealth);
 
 /**
  * POST /api/tools/convert

@@ -64,7 +64,10 @@ export class ToolsController {
     const diagnostics = toolsService.getHealthDiagnostics();
     res.json({
       success: true,
-      data: diagnostics,
+      data: {
+        libreOffice: Boolean(diagnostics.libreOffice),
+        ghostscript: Boolean(diagnostics.ghostscript),
+      },
     });
   };
 
