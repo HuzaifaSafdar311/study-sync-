@@ -73,7 +73,8 @@ class AdminAuthService {
       }
     }
 
-    // Sign Dedicated Admin JWT
+    // Sign Dedicated Admin JWT with unique jti for individual token revocation
+    const jti = crypto.randomUUID();
     const adminToken = jwt.sign(
       {
         adminId: account.id,
@@ -81,6 +82,7 @@ class AdminAuthService {
         email: account.email,
         role: account.role || 'superadmin',
         type: 'admin_session',
+        jti,
       },
       config.adminJwt.secret,
       { expiresIn: config.adminJwt.expiresIn } as jwt.SignOptions

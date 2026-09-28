@@ -3,6 +3,7 @@ import { adminAuthGuard, AdminAuthRequest } from '../../middleware/adminAuthGuar
 import { adminAuthLimiter } from '../../middleware/rateLimit';
 import { adminAuthService } from './admin.auth.service';
 import { adminService } from './admin.service';
+import { revokeAdminToken } from './adminTokenRevocation';
 
 const router = Router();
 
@@ -51,9 +52,36 @@ router.get('/auth/me', adminAuthGuard as any, async (req: AdminAuthRequest, res:
 
 /**
  * POST /api/admin/auth/logout
+ * SEC-004: Invalidate admin token upon logout
  */
-router.post('/auth/logout', (_req: Request, res: Response) => {
-  res.json({ success: true, message: 'Admin session terminated.' });
+router.post('/auth/logout', async (req: Request, res: Response) => {
+  try {
+    const adminHeader = req.headers['x-admin-token'] as string | undefined;
+    const authHeader = req.headers.authorization;
+    let token = adminHeader;
+
+    if (!token && authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7).trim();
+    } else if (!token && authHeader) {
+      token = authHeader.trim();
+    } else if (!token && req.cookies?.adminAccessToken) {
+      token = req.cookies.adminAccessToken;
+    }
+
+    if (token) {
+      await revokeAdminToken(token);
+    }
+
+    res.clearCookie('adminAccessToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+
+    res.json({ success: true, message: 'Admin session terminated and token revoked.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: 'Failed to terminate session.' });
+  }
 });
 
 /**

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
+import { isAdminTokenRevoked } from '../modules/admin/adminTokenRevocation';
 
 export interface AdminAuthRequest extends Request {
   adminId?: string;
@@ -13,7 +14,7 @@ export interface AdminAuthRequest extends Request {
  * Cryptographically verifies tokens signed ONLY with ADMIN_JWT_SECRET.
  * Automatically rejects standard student JWTs or unauthorized callers.
  */
-export const adminAuthGuard = (req: AdminAuthRequest, res: Response, next: NextFunction): void => {
+export const adminAuthGuard = async (req: AdminAuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const adminHeader = req.headers['x-admin-token'] as string | undefined;
     const authHeader = req.headers.authorization;
@@ -31,6 +32,15 @@ export const adminAuthGuard = (req: AdminAuthRequest, res: Response, next: NextF
       res.status(401).json({
         success: false,
         message: 'Administrator authorization required. Access denied.',
+      });
+      return;
+    }
+
+    // SEC-004: Invalidate logged out / revoked tokens
+    if (await isAdminTokenRevoked(token)) {
+      res.status(401).json({
+        success: false,
+        message: 'Admin session terminated. Please log in again.',
       });
       return;
     }
