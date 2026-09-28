@@ -50,10 +50,10 @@ router.post('/test-email', authGuard, async (req: AuthRequest, res: Response, ne
 
     if (!recipientEmail) {
       const user = await prisma.user.findUnique({
-        where: { id: req.userId || 'personal-user' },
+        where: { id: req.userId },
         select: { email: true },
       });
-      recipientEmail = user?.email || loadUserSettings().email;
+      recipientEmail = user?.email;
     }
 
     if (!recipientEmail) {

@@ -644,31 +644,11 @@ class AuthService {
       user = null;
     }
 
-    const targetUser = user || {
-      id: userId || 'personal-user',
-      fullName: loadUserSettings().fullName || 'Muhammad Arham',
-      email: loadUserSettings().email || 'arham.solution.me@gmail.com',
-      role: 'student',
-      whatsappNumber: loadUserSettings().whatsappNumber || null,
-      reminderLeadTimeMins: loadUserSettings().reminderLeadTimeMins || 1440,
-      googleOauthId: null,
-      hasGoogleConnected: false,
-      avatarUrl: null,
-      university: 'University of Management and Technology',
-      major: 'Software Engineering',
-      semester: '6th Semester',
-      isOnboarded: true,
-      plan: 'free',
-      aiProviderPreference: 'system',
-      activeByokProvider: null,
-      bonusCourses: 0,
-      createdAt: new Date(),
-    };
-
-    // Strictly enforce student role for arham.solution.me
-    if (targetUser.email && targetUser.email.toLowerCase().includes('arham.solution.me')) {
-      targetUser.role = 'student';
+    if (!user) {
+      throw Object.assign(new Error('User not found.'), { statusCode: 404 });
     }
+
+    const targetUser = user;
 
     let userCoursesCount = 0;
     try {

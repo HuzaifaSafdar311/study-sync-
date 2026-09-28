@@ -192,17 +192,8 @@ class CourseService {
       },
     });
 
-    if (courses.length === 0 && (!userId || userId === 'personal-user')) {
-      courses = await prisma.course.findMany({
-        orderBy: { createdAt: 'desc' },
-        include: {
-          _count: { select: { tasks: true } },
-        },
-      });
-    }
-
     const allTasks = await prisma.task.findMany({
-      where: userId && userId !== 'personal-user' ? { userId } : {},
+      where: { userId },
     });
 
     return courses.map((c: any) => {

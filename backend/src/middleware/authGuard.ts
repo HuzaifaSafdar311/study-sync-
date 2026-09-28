@@ -35,18 +35,26 @@ export const authGuard = async (req: AuthRequest, res: Response, next: NextFunct
 
     try {
       const decoded = jwt.verify(token, config.jwt.accessSecret) as {
-        userId: string;
-        role: string;
+        userId?: string;
+        role?: string;
       };
-      req.userId = decoded.userId;
-      req.userRole = decoded.role;
 
-      if (decoded.userId && decoded.userId !== 'personal-user') {
-        try {
-          const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
-            select: { isBlocked: true },
-          });
+      if (!decoded || !decoded.userId || typeof decoded.userId !== 'string' || decoded.userId.trim() === '') {
+        res.status(401).json({
+          success: false,
+          message: 'Invalid token: missing userId claim.',
+        });
+        return;
+      }
+
+      req.userId = decoded.userId;
+      req.userRole = decoded.role || 'student';
+
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.userId },
+          select: { isBlocked: true },
+        });
           if (user?.isBlocked) {
             res.status(403).json({
               success: false,
@@ -57,7 +65,6 @@ export const authGuard = async (req: AuthRequest, res: Response, next: NextFunct
         } catch {
           // If database check encounters an issue, proceed with verified token
         }
-      }
 
       return next();
     } catch (jwtErr: any) {

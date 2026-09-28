@@ -123,7 +123,11 @@ class ApiKeyController {
    */
   async saveKey(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const userId = req.userId || 'personal-user';
+      const userId = req.userId;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Authentication required.' });
+        return;
+      }
       const { provider, key, setAsActive = true } = req.body;
 
       if (!provider || !key) {
@@ -217,7 +221,11 @@ class ApiKeyController {
    */
   async listKeys(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const userId = req.userId || 'personal-user';
+      const userId = req.userId;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Authentication required.' });
+        return;
+      }
 
       const [user, keys] = await Promise.all([
         prisma.user.findUnique({
@@ -270,7 +278,11 @@ class ApiKeyController {
    */
   async setPreference(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const userId = req.userId || 'personal-user';
+      const userId = req.userId;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Authentication required.' });
+        return;
+      }
       const { aiProviderPreference, activeByokProvider } = req.body;
 
       if (aiProviderPreference && !['system', 'byok'].includes(aiProviderPreference)) {
@@ -308,7 +320,11 @@ class ApiKeyController {
    */
   async deleteKey(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const userId = req.userId || 'personal-user';
+      const userId = req.userId;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Authentication required.' });
+        return;
+      }
       const providerParam = String(req.params.provider || '').toLowerCase();
 
       await prisma.userApiKey.deleteMany({
