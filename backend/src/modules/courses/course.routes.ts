@@ -664,13 +664,28 @@ router.get('/:id/workspace-file', async (req: AuthRequest, res: Response, next: 
     const fsMod = await import('fs');
 
     const workspaceDir = pathMod.default.resolve(getCourseWorkspaceDir(courseId));
-    const safePath = pathMod.default.resolve(workspaceDir, filePath);
-
-    if (!safePath.toLowerCase().startsWith(workspaceDir.toLowerCase()) || !fsMod.default.existsSync(safePath)) {
+    if (!fsMod.default.existsSync(workspaceDir)) {
       res.status(404).json({ success: false, message: 'File not found in workspace.' });
       return;
     }
 
+    const realWorkspaceDir = fsMod.default.realpathSync(workspaceDir);
+    const candidatePath = pathMod.default.resolve(realWorkspaceDir, filePath);
+
+    if (!fsMod.default.existsSync(candidatePath)) {
+      res.status(404).json({ success: false, message: 'File not found in workspace.' });
+      return;
+    }
+
+    const realTarget = fsMod.default.realpathSync(candidatePath);
+    const isContained = realTarget === realWorkspaceDir || realTarget.startsWith(realWorkspaceDir + pathMod.default.sep);
+
+    if (!isContained) {
+      res.status(404).json({ success: false, message: 'File not found in workspace.' });
+      return;
+    }
+
+    const safePath = realTarget;
     const cleanFilename = pathMod.default.basename(safePath);
     const ext = pathMod.default.extname(cleanFilename).toLowerCase();
 
