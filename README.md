@@ -630,3 +630,4 @@ Use `backend/Dockerfile` to deploy a containerized Linux instance containing Nod
    Both the notification engine and document processing services check Redis connectivity on startup. If Redis is down, jobs fall back to in-memory event queues and interval-based polling.
 4. **Vercel Ephemeral Environment Detection**:
    When `process.env.VERCEL` is detected, long-lived background daemons, persistent socket listeners, and BullMQ worker initialization are bypassed to ensure serverless compatibility.
+"# study-sync-" 
