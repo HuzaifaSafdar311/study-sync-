@@ -23,6 +23,10 @@ export function validateStartupEnv(): void {
     if (!process.env.BYOK_ENCRYPTION_SECRET?.trim() && !process.env.ENCRYPTION_MASTER_KEY?.trim()) {
       missing.push('BYOK_ENCRYPTION_SECRET');
     }
+    // SEC-006: Refuse to start in production without dedicated ADMIN_JWT_SECRET
+    if (!process.env.ADMIN_JWT_SECRET?.trim()) {
+      missing.push('ADMIN_JWT_SECRET');
+    }
   }
 
   if (missing.length > 0) {
@@ -63,9 +67,9 @@ export const config = {
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
 
-  // Dedicated High-Security Admin JWT (completely isolated from student tokens)
+  // Dedicated High-Security Admin JWT (completely isolated from student tokens; SEC-006: no fallback to student secret)
   adminJwt: {
-    secret: process.env.ADMIN_JWT_SECRET?.trim() || process.env.JWT_ACCESS_SECRET?.trim() || 'studysync_secure_admin_jwt_secret_key_2026',
+    secret: process.env.ADMIN_JWT_SECRET?.trim() || 'studysync_secure_admin_jwt_secret_key_2026',
     expiresIn: process.env.ADMIN_JWT_EXPIRES_IN || '12h',
   },
 
