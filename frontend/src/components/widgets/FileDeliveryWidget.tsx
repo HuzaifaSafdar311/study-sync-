@@ -6,6 +6,7 @@ import {
   Code,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { API_ORIGIN } from '../../services/api';
 
 export interface FileDeliveryItem {
   filepath: string;
@@ -121,7 +122,7 @@ export default function FileDeliveryWidget({ data }: FileDeliveryWidgetProps) {
   const resolveDownloadUrl = (rawUrl?: string) => {
     if (!rawUrl) return '#';
     if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) return rawUrl;
-    return `http://localhost:5000${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+    return `${API_ORIGIN}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
   };
 
   const handleDownload = (file: FileDeliveryItem) => {

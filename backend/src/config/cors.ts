@@ -7,12 +7,12 @@ export const defaultAllowedOrigins = [
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5000',
   'http://127.0.0.1:3000',
-  'https://studysync-tan.vercel.app',
 ];
 
 export function getAllowedOrigins(): Set<string> {
   const envOrigins = [
     ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()) : []),
+    ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim()) : []),
     ...(config.frontendUrl ? config.frontendUrl.split(',').map((s) => s.trim()) : []),
   ];
   return new Set([...defaultAllowedOrigins, ...envOrigins].filter(Boolean));

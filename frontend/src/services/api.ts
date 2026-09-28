@@ -1,11 +1,33 @@
 import axios from 'axios';
 
-const isBrowser = typeof window !== 'undefined';
-const isProdHost = isBrowser && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
-const rawApiUrl = import.meta.env.VITE_API_URL;
-const safeApiUrl = isProdHost && rawApiUrl?.includes('localhost') ? '/api' : rawApiUrl;
+/**
+ * Resolves the API Base URL.
+ * In production, VITE_API_URL is mandatory and the application will fail loudly if missing.
+ */
+function resolveApiBase(): string {
+  const isBrowser = typeof window !== 'undefined';
+  const isProd = import.meta.env.PROD || (isBrowser && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1'));
+  const envUrl = import.meta.env.VITE_API_URL?.trim();
 
-const API_BASE = safeApiUrl || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api');
+  if (isProd) {
+    if (!envUrl) {
+      const errMsg = '[StudySync] FATAL CONFIG ERROR: VITE_API_URL environment variable is missing in production. ' +
+        'Set VITE_API_URL in your Vercel project environment variables (e.g. https://your-backend.railway.app/api).';
+      console.error(errMsg);
+      throw new Error(errMsg);
+    }
+    const cleaned = envUrl.replace(/\/+$/, '');
+    return cleaned.endsWith('/api') ? cleaned : `${cleaned}/api`;
+  }
+
+  // Development fallback
+  const devUrl = envUrl || 'http://localhost:5000/api';
+  const cleaned = devUrl.replace(/\/+$/, '');
+  return cleaned.endsWith('/api') ? cleaned : `${cleaned}/api`;
+}
+
+export const API_BASE = resolveApiBase();
+export const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -339,7 +361,7 @@ export const toolsApi = {
   getJobStatus: (jobId: string) => api.get(`/tools/jobs/${jobId}`),
 
   getDownloadUrl: (jobId: string) => {
-    const base = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api');
+    const base = API_BASE;
     const token = getAuthToken();
     const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
     return `${base}/tools/jobs/${jobId}/download${tokenParam}`;

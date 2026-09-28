@@ -2,7 +2,7 @@
   "name": "studysync-platform",
   "private": true,
   "scripts": {
-    "build": "cd backend && npm run prisma:generate && cd ../frontend && npm run build"
+    "build": "cd frontend && npm run build"
   },
   "dependencies": {
     "hash-wasm": "^4.12.0"

@@ -6,6 +6,7 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import mermaid from 'mermaid';
 import { repairChunkMathDelimiters } from '../utils/textSanitizer';
+import { API_ORIGIN } from '../services/api';
 
 // Initialize mermaid once with a clean, high-contrast, modern theme
 let mermaidInitialized = false;
@@ -757,7 +758,6 @@ function renderMathAndMarkdown(content: string, inlineOnly: boolean = false): st
     : (marked.parse(text) as string);
 
   // 9. Sanitize with DOMPurify while allowing KaTeX MathML, SVGs, and clickable links
-  const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
     if (node.tagName === 'A') {
       node.setAttribute('target', '_blank');

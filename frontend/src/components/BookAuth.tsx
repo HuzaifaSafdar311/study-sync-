@@ -10,7 +10,7 @@ import {
   Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { authApi, setAuthToken, setAdminToken } from '../services/api';
+import { authApi, setAuthToken, setAdminToken, API_BASE } from '../services/api';
 import AttractedDotsBackground from './AttractedDotsBackground';
 
 interface BookAuthProps {
@@ -248,15 +248,7 @@ export default function BookAuth({ initialMode, onLogin }: BookAuthProps) {
   };
 
   const handleGoogleSignIn = () => {
-    let apiUrl = '/api';
-    if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
-      // In production (e.g. Vercel deployment), never use localhost even if env is misconfigured
-      const envUrl = import.meta.env.VITE_API_URL;
-      apiUrl = envUrl && !envUrl.includes('localhost') ? envUrl : '/api';
-    } else {
-      apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api');
-    }
-    window.location.href = `${apiUrl}/auth/google`;
+    window.location.href = `${API_BASE}/auth/google`;
   };
 
   return (
