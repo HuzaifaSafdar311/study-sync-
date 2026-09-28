@@ -334,6 +334,13 @@ export function getToolJob(jobId: string): ToolJobRecord | undefined {
   return toolJobsStore.get(jobId);
 }
 
+/**
+ * Register or update a tool job directly in the store
+ */
+export function registerToolJob(record: ToolJobRecord): void {
+  toolJobsStore.set(record.id, record);
+}
+
 // ─── Auto-Deletion Cleanup Engine ─────────────────────────────────────
 
 /**

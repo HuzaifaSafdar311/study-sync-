@@ -101,7 +101,11 @@ router.get('/:id/tasks', async (req: AuthRequest, res: Response, next: NextFunct
 router.post('/:id/materials', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const courseId = req.params.id as string;
-    const courseRecord = await prisma.course.findUnique({ where: { id: courseId } });
+    const courseRecord = await courseService.getCourseById(req.userId!, courseId);
+    if (!courseRecord) {
+      res.status(404).json({ success: false, message: 'Course not found.' });
+      return;
+    }
     if ((courseRecord as any)?.isBlocked) {
       res.status(403).json({
         success: false,
@@ -140,7 +144,11 @@ router.post('/:id/materials', async (req: AuthRequest, res: Response, next: Next
 router.post('/:id/upload', uploadDocument.any(), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const courseId = req.params.id as string;
-    const courseRecord = await prisma.course.findUnique({ where: { id: courseId } });
+    const courseRecord = await courseService.getCourseById(req.userId!, courseId);
+    if (!courseRecord) {
+      res.status(404).json({ success: false, message: 'Course not found.' });
+      return;
+    }
     if ((courseRecord as any)?.isBlocked) {
       res.status(403).json({
         success: false,
@@ -390,7 +398,11 @@ router.post('/:id/upload', uploadDocument.any(), async (req: AuthRequest, res: R
 router.post('/:id/chat', uploadDocument.any(), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const courseId = req.params.id as string;
-    const courseRecord = await prisma.course.findUnique({ where: { id: courseId } });
+    const courseRecord = await courseService.getCourseById(req.userId!, courseId);
+    if (!courseRecord) {
+      res.status(404).json({ success: false, message: 'Course not found.' });
+      return;
+    }
     if ((courseRecord as any)?.isBlocked) {
       res.status(403).json({
         success: false,

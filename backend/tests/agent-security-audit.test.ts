@@ -233,14 +233,16 @@ describe('JOB B: Study Agent Security & Tool Audit', () => {
         } as any,
       });
 
-      // Attacker calls deleteCourse with attackerId and victimCourse.id
-      const deleted = await courseService.deleteCourse(attackerId, victimCourse.id);
+      // Attacker calls deleteCourse with attackerId and victimCourse.id - must reject with 404
+      let err: any = null;
+      try {
+        await courseService.deleteCourse(attackerId, victimCourse.id);
+      } catch (e: any) {
+        err = e;
+      }
 
-      assert.strictEqual(
-        deleted.id,
-        victimCourse.id,
-        'deleteCourse deleted victim\'s course without verifying ownership'
-      );
+      assert.ok(err, 'deleteCourse must throw when deleting unowned course');
+      assert.strictEqual(err.statusCode, 404, 'deleteCourse must return 404');
     });
   });
 });

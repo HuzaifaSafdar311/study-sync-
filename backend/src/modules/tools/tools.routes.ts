@@ -34,7 +34,7 @@ router.post('/compress', authGuard as any, toolsProcessingLimiter as any, handle
  * Polls job status. Returns status ('pending' | 'processing' | 'done' | 'failed')
  * and compression metrics if applicable.
  */
-router.get('/jobs/:id', toolsController.getJobStatus);
+router.get('/jobs/:id', authGuard as any, toolsController.getJobStatus);
 
 /**
  * GET /api/tools/jobs/:id/download

@@ -153,11 +153,12 @@ export class ToolsController {
   public getJobStatus = (req: Request, res: Response): void => {
     const id = String(req.params.id);
     const job = toolsService.getJob(id);
+    const reqUserId = (req as any).userId;
 
-    if (!job) {
+    if (!job || (job.userId && job.userId !== 'anonymous' && job.userId !== reqUserId)) {
       res.status(404).json({
         success: false,
-        message: 'Job not found or temporary files expired (older than 1 hour).',
+        message: 'Job not found.',
       });
       return;
     }
@@ -198,9 +199,9 @@ export class ToolsController {
 
       const reqUserId = (req as any).userId;
       if (job.userId && job.userId !== 'anonymous' && job.userId !== reqUserId) {
-        res.status(403).json({
+        res.status(404).json({
           success: false,
-          message: 'Access denied: You do not have permission to download this file.',
+          message: 'Job not found.',
         });
         return;
       }
