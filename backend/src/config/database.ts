@@ -155,57 +155,63 @@ const memoryDb = {
   chatMessages: new Map<string, any>(),
 };
 
-// Pre-populate with a demo user for immediate testing without registration
-const initialSettings = loadUserSettings();
+// Pre-populate with development identities in non-production environments only
+// Hardcoded static hashes and credentials are eliminated to prevent credential exposure (BUG-006)
 const demoUserId = 'd3b07384-d113-4602-9c0e-e2c7c5980001';
-memoryDb.users.set(demoUserId, {
-  id: demoUserId,
-  fullName: 'UMT Student',
-  email: initialSettings.email || 'devnexes.support@gmail.com',
-  passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$qHn2rM5rCg5B+Y/pU2fLvw$oE7mN2Y3N9Y2/1k9B8A7Q6W5E4R3T2Y1', // Password123
-  role: 'student',
-  isVerified: true,
-  otpCode: null,
-  otpExpiresAt: null,
-  reminderLeadTimeMins: 1440,
-  refreshToken: null,
-  avatarUrl: null,
-  university: 'University of Management and Technology',
-  major: 'Computer Science',
-  semester: '6th Semester',
-  isOnboarded: true,
-  plan: 'free',
-  aiProviderPreference: 'system',
-  activeByokProvider: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-});
-
-// Seed personal user
 const personalUserId = 'personal-user';
-memoryDb.users.set(personalUserId, {
-  id: personalUserId,
-  fullName: initialSettings.fullName || 'Personal Student',
-  email: initialSettings.email || 'devnexes.support@gmail.com',
-  passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$qHn2rM5rCg5B+Y/pU2fLvw$oE7mN2Y3N9Y2/1k9B8A7Q6W5E4R3T2Y1',
-  role: 'student',
-  isVerified: true,
-  otpCode: null,
-  otpExpiresAt: null,
-  reminderLeadTimeMins: initialSettings.reminderLeadTimeMins || 1440,
-  whatsappNumber: initialSettings.whatsappNumber || '',
-  refreshToken: null,
-  avatarUrl: null,
-  university: 'University of Management and Technology',
-  major: 'Software Engineering',
-  semester: '6th Semester',
-  isOnboarded: true,
-  plan: 'pro',
-  aiProviderPreference: 'system',
-  activeByokProvider: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-});
+
+if (process.env.NODE_ENV !== 'production') {
+  const initialSettings = loadUserSettings();
+  const unguessablePasswordHash = `$argon2id$disabled$${crypto.randomBytes(32).toString('hex')}`;
+
+  memoryDb.users.set(demoUserId, {
+    id: demoUserId,
+    fullName: 'Development Student',
+    email: initialSettings.email || 'dev-student@studysync.internal',
+    passwordHash: unguessablePasswordHash,
+    role: 'student',
+    isVerified: true,
+    otpCode: null,
+    otpExpiresAt: null,
+    reminderLeadTimeMins: 1440,
+    refreshToken: null,
+    avatarUrl: null,
+    university: 'Development University',
+    major: 'Computer Science',
+    semester: '1st Semester',
+    isOnboarded: true,
+    plan: 'free',
+    aiProviderPreference: 'system',
+    activeByokProvider: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  // Seed personal user
+  memoryDb.users.set(personalUserId, {
+    id: personalUserId,
+    fullName: initialSettings.fullName || 'Personal Student',
+    email: initialSettings.email || 'personal@studysync.internal',
+    passwordHash: unguessablePasswordHash,
+    role: 'student',
+    isVerified: true,
+    otpCode: null,
+    otpExpiresAt: null,
+    reminderLeadTimeMins: initialSettings.reminderLeadTimeMins || 1440,
+    whatsappNumber: initialSettings.whatsappNumber || '',
+    refreshToken: null,
+    avatarUrl: null,
+    university: 'Development University',
+    major: 'Software Engineering',
+    semester: '1st Semester',
+    isOnboarded: true,
+    plan: 'pro',
+    aiProviderPreference: 'system',
+    activeByokProvider: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+}
 
 let isPostgresAvailable = false;
 
@@ -229,8 +235,7 @@ pool.connect()
   .catch(() => {
     isPostgresAvailable = false;
     console.log('\n[Database] ℹ️  PostgreSQL not running locally.');
-    console.log('[Database] 🚀 Running in Standalone In-Memory Mode (No Docker required)');
-    console.log('[Database] 👤 Demo user: student@umt.edu.pk / Password123 (or register any new account!)\n');
+    console.log('[Database] 🚀 Running in Standalone In-Memory Mode (No Docker required)\n');
   });
 
 const adapter = new PrismaPg(pool);

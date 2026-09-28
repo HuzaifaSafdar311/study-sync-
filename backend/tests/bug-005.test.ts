@@ -2,6 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { authService } from '../src/modules/auth/auth.service';
 import { toSafeUser } from '../src/utils/safeUser';
+import prisma from '../src/config/database';
+import { hashPassword } from '../src/utils/hasher';
 
 function scanForForbiddenKeys(obj: any, path: string = ''): string[] {
   const violations: string[] = [];
@@ -46,14 +48,24 @@ describe('BUG-005: Never Return refreshToken or passwordHash from Auth and User 
   });
 
   it('should not leak refreshToken or passwordHash in authService.login user response', async () => {
+    const testEmail = `bug005-${Date.now()}@example.com`;
+    const password = 'TestSecurePassword123!';
+    const passwordHash = await hashPassword(password);
+    const userId = crypto.randomUUID();
+    await prisma.user.create({
+      data: {
+        id: userId,
+        email: testEmail,
+        fullName: 'Bug 005 User',
+        passwordHash,
+        role: 'student',
+        isVerified: true,
+      } as any,
+    });
+
     const result = await authService.login({
-      email: 'student@umt.edu.pk',
-      password: 'Password123',
-    }).catch(async () => {
-      return await authService.login({
-        email: 'devnexes.support@gmail.com',
-        password: 'Password123',
-      });
+      email: testEmail,
+      password: password,
     });
 
     assert.ok(result, 'Login must succeed');
