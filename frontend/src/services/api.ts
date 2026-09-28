@@ -2,32 +2,35 @@ import axios from 'axios';
 
 /**
  * Resolves the API Base URL.
- * In production, VITE_API_URL is mandatory and the application will fail loudly if missing.
+ * Reads VITE_API_URL if configured, otherwise falls back gracefully
+ * to relative '/api' in production or 'http://localhost:5000/api' in development.
  */
 function resolveApiBase(): string {
   const isBrowser = typeof window !== 'undefined';
   const isProd = import.meta.env.PROD || (isBrowser && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1'));
   const envUrl = import.meta.env.VITE_API_URL?.trim();
 
-  if (isProd) {
-    if (!envUrl) {
-      const errMsg = '[StudySync] FATAL CONFIG ERROR: VITE_API_URL environment variable is missing in production. ' +
-        'Set VITE_API_URL in your Vercel project environment variables (e.g. https://your-backend.railway.app/api).';
-      console.error(errMsg);
-      throw new Error(errMsg);
-    }
+  if (envUrl) {
     const cleaned = envUrl.replace(/\/+$/, '');
     return cleaned.endsWith('/api') ? cleaned : `${cleaned}/api`;
   }
 
+  if (isProd) {
+    console.warn(
+      '[StudySync] Notice: VITE_API_URL is not set in environment variables. Defaulting to relative "/api". ' +
+      'If your backend is hosted separately (e.g. Railway/Render), set VITE_API_URL in your Vercel project environment variables.'
+    );
+    return '/api';
+  }
+
   // Development fallback
-  const devUrl = envUrl || 'http://localhost:5000/api';
-  const cleaned = devUrl.replace(/\/+$/, '');
-  return cleaned.endsWith('/api') ? cleaned : `${cleaned}/api`;
+  return 'http://localhost:5000/api';
 }
 
 export const API_BASE = resolveApiBase();
-export const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
+export const API_ORIGIN = API_BASE.startsWith('http')
+  ? API_BASE.replace(/\/api\/?$/, '')
+  : (typeof window !== 'undefined' ? window.location.origin : '');
 
 const api = axios.create({
   baseURL: API_BASE,
