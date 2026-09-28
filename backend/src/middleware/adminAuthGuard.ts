@@ -31,6 +31,7 @@ export const adminAuthGuard = async (req: AdminAuthRequest, res: Response, next:
     if (!token) {
       res.status(401).json({
         success: false,
+        code: 'UNAUTHENTICATED',
         message: 'Administrator authorization required. Access denied.',
       });
       return;
@@ -40,6 +41,7 @@ export const adminAuthGuard = async (req: AdminAuthRequest, res: Response, next:
     if (await isAdminTokenRevoked(token)) {
       res.status(401).json({
         success: false,
+        code: 'TOKEN_EXPIRED',
         message: 'Admin session terminated. Please log in again.',
       });
       return;
@@ -56,6 +58,7 @@ export const adminAuthGuard = async (req: AdminAuthRequest, res: Response, next:
       if (!decoded.adminId) {
         res.status(401).json({
           success: false,
+          code: 'UNAUTHENTICATED',
           message: 'Malformed administrator token payload.',
         });
         return;
@@ -66,15 +69,35 @@ export const adminAuthGuard = async (req: AdminAuthRequest, res: Response, next:
       req.adminRole = decoded.role || 'superadmin';
       return next();
     } catch (jwtErr: any) {
+      // Check if caller holds a valid student/user JWT (authenticated, but wrong role)
+      try {
+        const studentDecoded = jwt.verify(token, config.jwt.accessSecret) as any;
+        if (studentDecoded && studentDecoded.userId) {
+          res.status(403).json({
+            success: false,
+            code: 'FORBIDDEN',
+            message: 'Forbidden: Admin privilege required. Your role does not grant access to this resource.',
+          });
+          return;
+        }
+      } catch {
+        // Not a valid student token either
+      }
+
+      const isExpired = jwtErr?.name === 'TokenExpiredError';
       res.status(401).json({
         success: false,
-        message: 'Admin session expired or invalid. Please log in at /admin/login.',
+        code: isExpired ? 'TOKEN_EXPIRED' : 'UNAUTHENTICATED',
+        message: isExpired
+          ? 'Admin session expired. Please log in at /admin/login.'
+          : 'Admin session expired or invalid. Please log in at /admin/login.',
       });
       return;
     }
   } catch (error) {
     res.status(401).json({
       success: false,
+      code: 'UNAUTHENTICATED',
       message: 'Admin authentication failure.',
     });
     return;

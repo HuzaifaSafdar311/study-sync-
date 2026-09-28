@@ -28,6 +28,7 @@ export const authGuard = async (req: AuthRequest, res: Response, next: NextFunct
     if (!token) {
       res.status(401).json({
         success: false,
+        code: 'UNAUTHENTICATED',
         message: 'Authentication required. Please log in.',
       });
       return;
@@ -42,6 +43,7 @@ export const authGuard = async (req: AuthRequest, res: Response, next: NextFunct
       if (!decoded || !decoded.userId || typeof decoded.userId !== 'string' || decoded.userId.trim() === '') {
         res.status(401).json({
           success: false,
+          code: 'UNAUTHENTICATED',
           message: 'Invalid token: missing userId claim.',
         });
         return;
@@ -55,33 +57,39 @@ export const authGuard = async (req: AuthRequest, res: Response, next: NextFunct
           where: { id: decoded.userId },
           select: { isBlocked: true },
         });
-          if (user?.isBlocked) {
-            res.status(403).json({
-              success: false,
-              message: 'Your account has been suspended by an administrator.',
-            });
-            return;
-          }
-        } catch {
-          // If database check encounters an issue, proceed with verified token (fail-open for availability)
-          // Operators must be alerted so blocked users admitted during a DB outage can be audited
-          console.warn(
-            '[AuthGuard] DB blocked-user check failed — failing open for userId:',
-            decoded.userId,
-          );
+        if (user?.isBlocked) {
+          res.status(403).json({
+            success: false,
+            code: 'FORBIDDEN',
+            message: 'Your account has been suspended by an administrator.',
+          });
+          return;
         }
+      } catch {
+        // If database check encounters an issue, proceed with verified token (fail-open for availability)
+        // Operators must be alerted so blocked users admitted during a DB outage can be audited
+        console.warn(
+          '[AuthGuard] DB blocked-user check failed — failing open for userId:',
+          decoded.userId,
+        );
+      }
 
       return next();
     } catch (jwtErr: any) {
+      const isExpired = jwtErr?.name === 'TokenExpiredError';
       res.status(401).json({
         success: false,
-        message: 'Session expired or invalid token. Please log in again.',
+        code: isExpired ? 'TOKEN_EXPIRED' : 'UNAUTHENTICATED',
+        message: isExpired
+          ? 'Session expired. Please refresh your session.'
+          : 'Invalid token. Please log in again.',
       });
       return;
     }
   } catch (error) {
     res.status(401).json({
       success: false,
+      code: 'UNAUTHENTICATED',
       message: 'Authentication error. Please log in.',
     });
     return;
@@ -96,6 +104,7 @@ export const requireRole = (...roles: string[]) => {
     if (!req.userRole || !roles.includes(req.userRole)) {
       res.status(403).json({
         success: false,
+        code: 'FORBIDDEN',
         message: 'You do not have permission to access this resource.',
       });
       return;
