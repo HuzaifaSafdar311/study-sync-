@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import prisma from '../../config/database';
 import { config } from '../../config';
@@ -7,6 +8,40 @@ export interface AdminLoginInput {
   identifier: string; // username or email
   password: string;
   securityPassphrase?: string;
+}
+
+/**
+ * SEC-017: Constant-time string comparison to eliminate timing side-channels
+ */
+export function constantTimeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+/**
+ * SEC-017: Verifies security passphrase supporting Argon2id hashes with fallback constant-time comparison
+ */
+export async function verifyPassphrase(storedPassphrase: string, providedPassphrase: string): Promise<{ valid: boolean; needsRehash: boolean }> {
+  if (!storedPassphrase || !providedPassphrase) {
+    return { valid: false, needsRehash: false };
+  }
+
+  const trimmedProvided = providedPassphrase.trim();
+
+  // 1. If stored as Argon2id hash
+  if (storedPassphrase.startsWith('$argon2id$')) {
+    const isMatch = await verifyPassword(storedPassphrase, trimmedProvided);
+    return { valid: isMatch, needsRehash: false };
+  }
+
+  // 2. Legacy plaintext fallback: use constant-time comparison to eliminate timing attacks
+  const isMatch = constantTimeCompare(storedPassphrase.trim(), trimmedProvided);
+  return { valid: isMatch, needsRehash: isMatch };
 }
 
 class AdminAuthService {
@@ -64,12 +99,32 @@ class AdminAuthService {
       });
     }
 
-    // Verify Security Passphrase if required on account
+    // SEC-017: Verify Security Passphrase using Argon2id / constant-time comparison
     if (account.securityPassphrase && account.securityPassphrase.trim() !== '') {
-      if (!securityPassphrase || securityPassphrase.trim() !== account.securityPassphrase.trim()) {
+      if (!securityPassphrase) {
         throw Object.assign(new Error('Invalid admin security passphrase.'), {
           statusCode: 401,
         });
+      }
+
+      const { valid, needsRehash } = await verifyPassphrase(account.securityPassphrase, securityPassphrase);
+      if (!valid) {
+        throw Object.assign(new Error('Invalid admin security passphrase.'), {
+          statusCode: 401,
+        });
+      }
+
+      // Upgrade plaintext passphrase in DB to Argon2id
+      if (needsRehash) {
+        try {
+          const hashed = await hashPassword(securityPassphrase.trim());
+          await prisma.adminAccount.update({
+            where: { id: account.id },
+            data: { securityPassphrase: hashed },
+          });
+        } catch (err) {
+          console.warn('[AdminAuth] Could not upgrade security passphrase hash:', err);
+        }
       }
     }
 
