@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { adminAuthGuard, AdminAuthRequest } from '../../middleware/adminAuthGuard';
+import { adminAuthLimiter } from '../../middleware/rateLimit';
 import { adminAuthService } from './admin.auth.service';
 import { adminService } from './admin.service';
 
@@ -11,7 +12,7 @@ const router = Router();
  * POST /api/admin/auth/login
  * High-security admin authentication using public.admin_accounts
  */
-router.post('/auth/login', async (req: Request, res: Response) => {
+router.post('/auth/login', adminAuthLimiter as any, async (req: Request, res: Response) => {
   try {
     const { identifier, password, securityPassphrase } = req.body;
     const result = await adminAuthService.login({

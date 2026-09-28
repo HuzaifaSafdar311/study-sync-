@@ -145,3 +145,12 @@ export const toolsProcessingLimiter = rateLimit({
   keyPrefix: 'rl:tools',
   message: 'Document processing rate limit reached — please wait a few minutes before submitting new jobs.',
 });
+
+export const adminAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  maxRequests: 5,
+  keyPrefix: 'rl:admin_auth',
+  message: 'Too many admin authentication attempts. For security reasons, please wait before trying again.',
+  fallbackToMemory: true,
+});
+
