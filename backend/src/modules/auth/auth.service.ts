@@ -256,11 +256,6 @@ class AuthService {
       };
     }
 
-    // Enforce student role for student email accounts like arham.solution.me
-    if (user.email && user.email.toLowerCase().includes('arham.solution.me')) {
-      user.role = 'student';
-    }
-
     // Generate token pair
     const tokens = this.generateTokens(user.id, user.role);
 
