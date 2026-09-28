@@ -372,6 +372,15 @@ class CourseService {
    * Delete course, associated chat history, workspace files, and FAISS Vector Database embeddings
    */
   async deleteCourse(userId: string, courseId: string) {
+    // 0. Verify course ownership first before deleting any resources
+    const course = await prisma.course.findFirst({
+      where: { id: courseId, userId },
+    });
+
+    if (!course) {
+      throw Object.assign(new Error('Course not found.'), { statusCode: 404 });
+    }
+
     // 1. Delete course chat history and remove independent history file
     this.chatHistories.delete(courseId);
     try {
