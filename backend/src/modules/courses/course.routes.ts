@@ -82,20 +82,6 @@ router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => 
 });
 
 /**
- * GET /api/courses/:id/tasks
- * Get all pending and completed tasks for a specific course
- */
-router.get('/:id/tasks', async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const courseId = req.params.id as string;
-    const data = await courseService.getCourseTasks(req.userId!, courseId);
-    res.status(200).json({ success: true, data });
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
  * POST /api/courses/:id/materials
  */
 router.post('/:id/materials', async (req: AuthRequest, res: Response, next: NextFunction) => {
