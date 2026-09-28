@@ -7,6 +7,7 @@ import { emailService } from '../notifications/email.service';
 import { RegisterInput, LoginInput } from './auth.schema';
 import { getPlanConfig, calculateTrialStatus, buildWhatsAppPurchaseUrl, normalizePlanId } from '../../config/plans';
 import { adminAuthService } from '../admin/admin.auth.service';
+import { toSafeUser } from '../../utils/safeUser';
 
 function generate6DigitOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -102,7 +103,7 @@ class AuthService {
     if (user.isVerified) {
       const tokens = this.generateTokens(user.id, user.role);
       await this.storeRefreshToken(user.id, tokens.refreshToken);
-      const { passwordHash: _, ...safeUser } = user;
+      const safeUser = toSafeUser(user);
       return { user: safeUser, ...tokens, message: 'Account is already verified.' };
     }
 
@@ -142,7 +143,7 @@ class AuthService {
     const tokens = this.generateTokens(updated.id, updated.role);
     await this.storeRefreshToken(updated.id, tokens.refreshToken);
 
-    const { passwordHash: _, ...safeUser } = updated;
+    const safeUser = toSafeUser(updated);
     return {
       user: safeUser,
       ...tokens,
@@ -284,7 +285,7 @@ class AuthService {
     // Store new refresh token
     await this.storeRefreshToken(user.id, tokens.refreshToken);
 
-    const { passwordHash, ...safeUser } = user;
+    const safeUser = toSafeUser(user);
     return { user: safeUser, ...tokens };
   }
 
@@ -421,7 +422,7 @@ class AuthService {
       const tokens = this.generateTokens(user.id, user.role);
       await this.storeRefreshToken(user.id, tokens.refreshToken);
 
-      const { refreshToken: _, ...safeUser } = user;
+      const safeUser = toSafeUser(user);
       return { user: safeUser, ...tokens };
     } catch (error: any) {
       if (error.statusCode) throw error;
@@ -603,7 +604,7 @@ class AuthService {
     const tokens = this.generateTokens(user.id, user.role);
     await this.storeRefreshToken(user.id, tokens.refreshToken);
 
-    const { passwordHash: _, ...safeUser } = user;
+    const safeUser = toSafeUser(user);
     return {
       user: safeUser,
       ...tokens,

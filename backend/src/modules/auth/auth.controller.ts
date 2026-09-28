@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { authService } from './auth.service';
 import { AuthRequest } from '../../middleware/authGuard';
 import { config } from '../../config';
+import { toSafeUser } from '../../utils/safeUser';
 
 function getEffectiveGoogleRedirectUri(req: Request): string {
   const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
@@ -59,7 +60,7 @@ class AuthController {
         success: true,
         message: 'Welcome to StudySync! Your account is ready.',
         data: {
-          user: (result as any).user,
+          user: toSafeUser((result as any).user),
           accessToken: (result as any).accessToken,
         },
       });
@@ -101,7 +102,7 @@ class AuthController {
         success: true,
         message: result.message,
         data: {
-          user: result.user,
+          user: toSafeUser(result.user),
           accessToken: result.accessToken,
         },
       });
@@ -164,7 +165,7 @@ class AuthController {
         success: true,
         message: result.isAdmin ? 'Admin session authorized.' : 'Welcome back!',
         data: {
-          user: result.user,
+          user: toSafeUser(result.user),
           accessToken: result.accessToken,
           adminToken: result.adminToken,
           isAdmin: result.isAdmin || false,
@@ -249,7 +250,7 @@ class AuthController {
       res.status(200).json({
         success: true,
         data: {
-          user: result.user,
+          user: toSafeUser(result.user),
           accessToken: result.accessToken,
         },
       });
@@ -488,7 +489,7 @@ class AuthController {
         success: true,
         message: result.message || 'Google authentication successful!',
         data: {
-          user: result.user,
+          user: toSafeUser(result.user),
           accessToken: result.accessToken,
         },
       });
