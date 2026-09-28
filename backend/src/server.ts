@@ -35,23 +35,11 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }) as any);
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5000',
-  'http://localhost:3000',
-  'https://studysync-tan.vercel.app',
-  ...(config.frontendUrl ? config.frontendUrl.split(',').map((s) => s.trim()) : []),
-];
+import { isOriginAllowed } from './config/cors';
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (
-      allowedOrigins.includes(origin) ||
-      origin.endsWith('.vercel.app') ||
-      origin.includes('localhost') ||
-      origin.includes('127.0.0.1')
-    ) {
+    if (!origin || isOriginAllowed(origin)) {
       return callback(null, true);
     }
     return callback(new Error('CORS error: Origin not allowed by StudySync security policy'));
@@ -217,8 +205,8 @@ process.on('uncaughtException', (err: Error) => {
   }
 });
 
-// Only start standalone HTTP listener and background loops if NOT running as a Vercel Serverless Function
-if (!process.env.VERCEL) {
+// Only start standalone HTTP listener and background loops if NOT running as a Vercel Serverless Function and NOT under test
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
   startServer();
 }
 
