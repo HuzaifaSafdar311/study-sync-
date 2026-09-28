@@ -13,6 +13,13 @@ function generate6DigitOtp(): string {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
+function constantTimeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 class AuthService {
   /**
    * Register a new student account with Argon2id password hashing and email OTP.
@@ -115,7 +122,7 @@ class AuthService {
 
     const isValidOtp = user.otpCode.startsWith('$argon2')
       ? await verifyPassword(user.otpCode, otp.trim())
-      : user.otpCode.trim() === otp.trim();
+      : constantTimeEqual(user.otpCode.trim(), otp.trim());
 
     if (!isValidOtp) {
       throw Object.assign(new Error('Invalid verification code. Please check your email.'), {
@@ -336,7 +343,7 @@ class AuthService {
     for (const record of candidateResets) {
       const isMatch = record.otpCode.startsWith('$argon2')
         ? await verifyPassword(record.otpCode, otp.trim())
-        : record.otpCode.trim() === otp.trim();
+        : constantTimeEqual(record.otpCode.trim(), otp.trim());
 
       if (isMatch) {
         resetRecord = record;
