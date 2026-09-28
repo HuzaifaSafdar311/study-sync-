@@ -712,9 +712,9 @@ class CourseService {
       | Array<{ filename?: string; mimeType?: string; base64?: string; isImage?: boolean }>,
     enableThink: boolean = false
   ) {
-    const course =
-      (await prisma.course.findFirst({ where: { id: courseId, userId } })) ||
-      (await prisma.course.findUnique({ where: { id: courseId } }));
+    const course = await prisma.course.findFirst({
+      where: { id: courseId, userId },
+    });
 
     if (!course) {
       throw Object.assign(new Error('Course not found.'), { statusCode: 404 });
