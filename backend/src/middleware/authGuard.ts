@@ -63,7 +63,12 @@ export const authGuard = async (req: AuthRequest, res: Response, next: NextFunct
             return;
           }
         } catch {
-          // If database check encounters an issue, proceed with verified token
+          // If database check encounters an issue, proceed with verified token (fail-open for availability)
+          // Operators must be alerted so blocked users admitted during a DB outage can be audited
+          console.warn(
+            '[AuthGuard] DB blocked-user check failed — failing open for userId:',
+            decoded.userId,
+          );
         }
 
       return next();
