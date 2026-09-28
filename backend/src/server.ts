@@ -31,7 +31,11 @@ const app = express();
 // ─── Security & Parsing Middleware ────────────────────────────────────
 
 app.use(helmet({
-  contentSecurityPolicy: config.isDev ? false : undefined,
+  // SEC-015: Never fully disable CSP — use report-only mode in dev so violations surface locally.
+  // In production, Helmet applies the default full enforcement policy.
+  contentSecurityPolicy: config.isDev
+    ? { reportOnly: true }
+    : undefined,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }) as any);
 
@@ -102,34 +106,17 @@ const healthResponse = async (_req: express.Request, res: express.Response) => {
 app.get('/api/health', healthResponse);
 app.get('/health', healthResponse);
 
-// ─── API Routes (Mounted on both /api and root for Vercel serverless & local) ───
+// ─── API Routes (Mounted under /api) ───────────────────────────────────
 
 app.use('/api/auth', authRoutes);
-app.use('/auth', authRoutes);
-
 app.use('/api/tasks', taskRoutes);
-app.use('/tasks', taskRoutes);
-
 app.use('/api/voice', voiceRoutes);
-app.use('/voice', voiceRoutes);
-
 app.use('/api/notifications', notificationRoutes);
-app.use('/notifications', notificationRoutes);
-
 app.use('/api/courses', courseRoutes);
-app.use('/courses', courseRoutes);
-
 app.use('/api/whatsapp', whatsappRoutes);
-app.use('/whatsapp', whatsappRoutes);
-
 app.use('/api/user/keys', apiKeyRoutes);
-app.use('/user/keys', apiKeyRoutes);
-
 app.use('/api/admin', adminRoutes);
-app.use('/admin', adminRoutes);
-
 app.use('/api/tools', toolsRoutes);
-app.use('/tools', toolsRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────
 
