@@ -33,7 +33,7 @@ export const rateLimit = (options: RateLimitOptions) => {
     maxRequests,
     keyPrefix = 'rl',
     message = 'Too many requests — please try again in a moment.',
-    fallbackToMemory = false,
+    fallbackToMemory = true,
   } = options;
 
   const windowSeconds = Math.ceil(windowMs / 1000);
@@ -71,12 +71,9 @@ export const rateLimit = (options: RateLimitOptions) => {
   };
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // SEC-005: When Redis is offline, seamlessly fall back to memory limiter — NEVER fail open
     if (redis.status !== 'ready') {
-      if (fallbackToMemory) {
-        return enforceMemoryRateLimit(req, res, next);
-      }
-      next();
-      return;
+      return enforceMemoryRateLimit(req, res, next);
     }
     try {
       const identifier = req.ip || req.socket.remoteAddress || 'unknown';
@@ -106,22 +103,19 @@ export const rateLimit = (options: RateLimitOptions) => {
 
       next();
     } catch (error) {
-      if (fallbackToMemory) {
-        console.warn('[RateLimit] Redis error, falling back to in-memory rate limiting:', (error as any)?.message);
-        return enforceMemoryRateLimit(req, res, next);
-      }
-      // If Redis is down and fallback is disabled, allow the request through (fail-open)
-      console.error('[RateLimit] Redis error, failing open:', error);
-      next();
+      // SEC-005: On Redis error, fall back to memory limiter — NEVER fail open
+      console.warn('[RateLimit] Redis error, falling back to in-memory rate limiting:', (error as any)?.message);
+      return enforceMemoryRateLimit(req, res, next);
     }
   };
 };
 
-// Pre-configured rate limiters
+// Pre-configured rate limiters — all backed by Redis with zero-fail-open in-memory fallback
 export const generalLimiter = rateLimit({
   windowMs: 60 * 1000,  // 1 minute
   maxRequests: 100,
   keyPrefix: 'rl:general',
+  fallbackToMemory: true,
 });
 
 export const authLimiter = rateLimit({
@@ -137,6 +131,7 @@ export const voiceLimiter = rateLimit({
   maxRequests: 10,
   keyPrefix: 'rl:voice',
   message: 'Voice capture rate limit reached — please wait before recording again.',
+  fallbackToMemory: true,
 });
 
 export const toolsProcessingLimiter = rateLimit({
@@ -144,6 +139,7 @@ export const toolsProcessingLimiter = rateLimit({
   maxRequests: 10,          // Max 10 CPU-heavy conversions/compressions per 5 mins
   keyPrefix: 'rl:tools',
   message: 'Document processing rate limit reached — please wait a few minutes before submitting new jobs.',
+  fallbackToMemory: true,
 });
 
 export const adminAuthLimiter = rateLimit({
